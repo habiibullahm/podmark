@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { episodes as initialEpisodes } from "../data/mockData";
+import { useEpisodesStore } from "../store/useEpisodesStore";
 import type { Episode } from "../data/types";
 
 interface PlayerContextValue {
@@ -67,6 +67,18 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [speedIndex, setSpeedIndex] = useState(0);
   const [seekFlashSec, setSeekFlashSec] = useState<number | null>(null);
 
+  const isRealAudio = !!episode?.audioUrl;
+
+  // Real playback engine for episodes that have a real audioUrl (from iTunes
+  // search). Episodes without one (the original mock catalog) keep using the
+  // simulated timer below — both feed the same positionSec/isPlaying state,
+  // so every other component is unaware of which engine is driving them.
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
+  if (audioElRef.current === null && typeof Audio !== "undefined") {
+    audioElRef.current = new Audio();
+  }
+  const pendingSeek = useRef<number | null>(null);
+
   // Lazy-init without re-reading localStorage on every render (useRef has no
   // lazy-initializer form, so a plain useRef(loadStoredProgress()) would
   // re-invoke loadStoredProgress() on every render even though only the
@@ -91,33 +103,93 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Pure position tick — no side effects inside the updater, so this stays
-  // safe under React StrictMode's dev-mode double-invocation of updaters.
+  // Load the real <audio> element's source whenever the active episode
+  // (with a real audioUrl) changes, and apply any pending seek/autoplay once
+  // its metadata is ready (setting currentTime/play before that is unreliable
+  // across browsers).
   useEffect(() => {
-    if (!isPlaying || !episode) return;
+    const audio = audioElRef.current;
+    if (!audio) return;
+
+    if (!episode?.audioUrl) {
+      audio.pause();
+      audio.removeAttribute("src");
+      return;
+    }
+
+    audio.src = episode.audioUrl;
+    audio.load();
+    const onLoaded = () => {
+      if (pendingSeek.current !== null) {
+        audio.currentTime = pendingSeek.current;
+        pendingSeek.current = null;
+      }
+      if (isPlaying) {
+        audio.play().catch(() => setIsPlaying(false));
+      }
+    };
+    audio.addEventListener("loadedmetadata", onLoaded, { once: true });
+    return () => audio.removeEventListener("loadedmetadata", onLoaded);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [episode?.id, episode?.audioUrl]);
+
+  // Real audio drives positionSec from its own timeupdate event instead of a
+  // simulated tick.
+  useEffect(() => {
+    const audio = audioElRef.current;
+    if (!audio || !isRealAudio) return;
+    const onTimeUpdate = () => {
+      tickCount.current += 1;
+      setPositionSec(audio.currentTime);
+    };
+    const onEnded = () => setIsPlaying(false);
+    audio.addEventListener("timeupdate", onTimeUpdate);
+    audio.addEventListener("ended", onEnded);
+    return () => {
+      audio.removeEventListener("timeupdate", onTimeUpdate);
+      audio.removeEventListener("ended", onEnded);
+    };
+  }, [isRealAudio]);
+
+  // Keep the real element's play/pause state and speed in sync with our state.
+  useEffect(() => {
+    const audio = audioElRef.current;
+    if (!audio || !isRealAudio) return;
+    audio.playbackRate = SPEEDS[speedIndex];
+    if (isPlaying) {
+      audio.play().catch(() => setIsPlaying(false));
+    } else {
+      audio.pause();
+    }
+  }, [isPlaying, isRealAudio, speedIndex]);
+
+  // Simulated tick for mock episodes only — pure updater, no side effects
+  // inside it, so this stays safe under React StrictMode's dev-mode
+  // double-invocation of updaters.
+  useEffect(() => {
+    if (!isPlaying || !episode || isRealAudio) return;
     const interval = setInterval(() => {
       tickCount.current += 1;
       setPositionSec((prev) => Math.min(prev + SPEEDS[speedIndex], episode.durationSec));
     }, 1000);
     return () => clearInterval(interval);
-  }, [isPlaying, episode, speedIndex]);
+  }, [isPlaying, episode, speedIndex, isRealAudio]);
 
-  // Side effects (ref mutation, throttled persistence, end-of-episode stop)
-  // live here, reacting to positionSec instead of running inside the
-  // setState updater.
+  // Side effects (ref mutation, throttled persistence, end-of-episode stop
+  // for simulated playback) live here, reacting to positionSec instead of
+  // running inside a setState updater.
   useEffect(() => {
     if (!episode) return;
     const shouldPersistNow = !isPlaying || tickCount.current % PERSIST_EVERY_N_TICKS === 0;
     persistProgress(episode.id, positionSec, shouldPersistNow);
-    if (positionSec >= episode.durationSec) {
+    if (!isRealAudio && positionSec >= episode.durationSec) {
       setIsPlaying(false);
     }
-  }, [positionSec, episode, isPlaying, persistProgress]);
+  }, [positionSec, episode, isPlaying, isRealAudio, persistProgress]);
 
-  // Safety net for the throttled persistence above: whatever the last
-  // written-but-not-yet-flushed position is, flush it the moment the tab is
-  // hidden or closed, so at most one throttle window's progress is ever at
-  // risk instead of it being lost until the next multiple-of-N tick.
+  // Safety net for the throttled persistence above: flush the moment the tab
+  // is hidden or closed, so at most one throttle window's progress is ever
+  // at risk instead of it being lost until the next multiple-of-N tick.
   useEffect(() => {
     const flush = () => saveStoredProgress(overrideProgress.current);
     const onVisibilityChange = () => {
@@ -135,6 +207,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     (ep: Episode) => {
       if (episode?.id !== ep.id) {
         const startAt = overrideProgress.current[ep.id] ?? ep.progressSec;
+        pendingSeek.current = startAt;
         setPositionSec(startAt);
       }
       setEpisode(ep);
@@ -148,6 +221,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       if (episode?.id === ep.id) return;
       setEpisode(ep);
       const startAt = overrideProgress.current[ep.id] ?? ep.progressSec;
+      pendingSeek.current = startAt;
       setPositionSec(startAt);
       setIsPlaying(false);
     },
@@ -162,7 +236,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const seek = useCallback(
     (sec: number) => {
       if (!episode) return;
-      const clamped = Math.max(0, Math.min(sec, episode.durationSec));
+      const max = episode.durationSec || Number.POSITIVE_INFINITY;
+      const clamped = Math.max(0, Math.min(sec, max));
+      if (isRealAudio && audioElRef.current) {
+        audioElRef.current.currentTime = clamped;
+      }
+      pendingSeek.current = clamped;
       setPositionSec(clamped);
       persistProgress(episode.id, clamped, true);
       setSeekFlashSec(clamped);
@@ -171,7 +250,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       }
       seekFlashTimeout.current = window.setTimeout(() => setSeekFlashSec(null), 900);
     },
-    [episode, persistProgress],
+    [episode, isRealAudio, persistProgress],
   );
 
   const skip = useCallback(
@@ -194,7 +273,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const getProgressFor = useCallback(
     (episodeId: string) => {
       if (episode?.id === episodeId) return positionSec;
-      const ep = initialEpisodes.find((e) => e.id === episodeId);
+      const ep = useEpisodesStore.getState().episodes.find((e) => e.id === episodeId);
       return overrideProgress.current[episodeId] ?? ep?.progressSec ?? 0;
     },
     [episode, positionSec],

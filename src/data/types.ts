@@ -5,11 +5,13 @@ export interface Episode {
   title: string;
   show: string;
   artworkGradient: string; // CSS gradient placeholder in lieu of real artwork
+  artworkImageUrl?: string; // real episode/show artwork, when available (overrides artworkGradient)
   durationSec: number;
   progressSec: number;
   status: EpisodeStatus;
   tags: string[];
   publishedAt: string;
+  audioUrl?: string; // real audio file URL — when present, PlayerContext uses a real <audio> element instead of the simulated timer
 }
 
 export type NoteBlockType = "timestamp-note" | "highlight";

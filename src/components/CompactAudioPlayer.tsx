@@ -1,5 +1,6 @@
 import { usePlayer } from "../context/PlayerContext";
 import { clampPercent } from "../lib/format";
+import { EpisodeArtwork } from "./EpisodeArtwork";
 
 export function CompactAudioPlayer() {
   const { episode, positionSec, isPlaying, togglePlay, skip, speed, cycleSpeed, setExpanded } =
@@ -20,10 +21,7 @@ export function CompactAudioPlayer() {
           onClick={() => setExpanded(true)}
           className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
         >
-          <div
-            className="h-9 w-9 shrink-0 rounded-lg"
-            style={{ background: episode.artworkGradient }}
-          />
+          <EpisodeArtwork episode={episode} className="h-9 w-9 shrink-0 rounded-lg" />
           <div className="min-w-0">
             <p className="line-clamp-1 text-[13px] font-medium text-text-primary">
               {episode.title}

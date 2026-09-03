@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
-import { episodes, dailyGoal } from "../data/mockData";
+import { dailyGoal } from "../data/mockData";
 import { useNotesStore } from "../store/useNotesStore";
+import { useEpisodesStore } from "../store/useEpisodesStore";
 import { usePlayer } from "../context/PlayerContext";
 import { getEffectiveStatus } from "../lib/episodes";
 import { AppHeader } from "../components/AppHeader";
@@ -12,6 +13,7 @@ import { EpisodeCard } from "../components/EpisodeCard";
 
 export function Dashboard() {
   const navigate = useNavigate();
+  const episodes = useEpisodesStore((s) => s.episodes);
   const { getProgressFor } = usePlayer();
   const currentlyLearningStatuses = episodes.map((e) => getEffectiveStatus(e, getProgressFor(e.id)));
   const currentlyLearningIndex = currentlyLearningStatuses.findIndex((s) => s === "in-progress");
