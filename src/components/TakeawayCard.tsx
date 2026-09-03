@@ -1,0 +1,49 @@
+import { useNavigate } from "react-router-dom";
+import type { NoteBlock } from "../data/types";
+import { episodes } from "../data/mockData";
+import { formatTime } from "../lib/format";
+import { TagChip } from "./TagChip";
+
+export function TakeawayCard({
+  note,
+  fullWidth = false,
+}: {
+  note: NoteBlock;
+  fullWidth?: boolean;
+}) {
+  const navigate = useNavigate();
+  const episode = episodes.find((e) => e.id === note.episodeId);
+
+  return (
+    <div
+      className={`shrink-0 snap-start rounded-2xl border border-border bg-bg-surface p-4 ${
+        fullWidth ? "w-full" : "w-[270px] md:w-full"
+      }`}
+    >
+      <span className="text-xs text-text-tertiary">
+        {note.type === "highlight" ? "⭐" : "🕐"}
+      </span>
+
+      <p
+        className={`mt-2 line-clamp-3 text-[14px] leading-snug text-text-primary ${
+          note.type === "highlight" ? "italic" : ""
+        }`}
+      >
+        {note.text}
+      </p>
+
+      <p className="mt-2 line-clamp-1 text-xs text-text-secondary">{episode?.title}</p>
+
+      <button
+        type="button"
+        onClick={() => navigate(`/episode/${note.episodeId}`)}
+        className="mt-2 flex w-full items-center justify-between gap-2 text-left"
+      >
+        {note.tags[0] ? <TagChip label={note.tags[0]} /> : <span />}
+        <span className="shrink-0 rounded-md bg-bg-surface-alt px-1.5 py-0.5 text-[11px] font-medium text-text-secondary">
+          {formatTime(note.timestampSec)}
+        </span>
+      </button>
+    </div>
+  );
+}
