@@ -116,7 +116,3 @@ export const dailyGoal: DailyGoal = {
   todayMinutes: 18,
   last7Days: [22, 30, 12, 30, 25, 8, 18],
 };
-
-export const allTags = Array.from(
-  new Set(episodes.flatMap((e) => e.tags)),
-).sort();

@@ -1,5 +1,6 @@
 import { usePlayer } from "../context/PlayerContext";
 import { clampPercent, formatTime } from "../lib/format";
+import { EpisodeArtwork } from "./EpisodeArtwork";
 
 export function FullScreenPlayerModal() {
   const {
@@ -38,10 +39,7 @@ export function FullScreenPlayerModal() {
         </div>
 
         <div className="flex flex-1 flex-col items-center justify-center px-8">
-          <div
-            className="mb-8 h-64 w-64 rounded-3xl shadow-2xl"
-            style={{ background: episode.artworkGradient }}
-          />
+          <EpisodeArtwork episode={episode} className="mb-8 h-64 w-64 rounded-3xl shadow-2xl" />
           <p className="text-center text-[13px] font-medium text-text-secondary">
             {episode.show}
           </p>

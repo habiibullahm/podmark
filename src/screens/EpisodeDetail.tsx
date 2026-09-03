@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { episodes } from "../data/mockData";
+import { useEpisodesStore } from "../store/useEpisodesStore";
 import { usePlayer } from "../context/PlayerContext";
 import { useNotesStore } from "../store/useNotesStore";
 import { filterNotesByEpisode } from "../lib/episodes";
 import { TagChip } from "../components/TagChip";
+import { EpisodeArtwork } from "../components/EpisodeArtwork";
 import { AISummaryCard } from "../components/AISummaryCard";
 import { TimestampNoteBlock } from "../components/TimestampNoteBlock";
 import { HighlightBlock } from "../components/HighlightBlock";
@@ -15,6 +16,7 @@ const DEFAULT_FREEFORM_NOTES = "- Key theme this episode revolves around...\n- "
 export function EpisodeDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const episodes = useEpisodesStore((s) => s.episodes);
   const episode = episodes.find((e) => e.id === id);
 
   const { episode: playerEpisode, positionSec, openEpisode, getProgressFor } = usePlayer();
@@ -112,10 +114,7 @@ export function EpisodeDetail() {
 
       <div className="px-5 pt-4 md:px-0 md:pt-6">
         <div className="flex items-center gap-3">
-          <div
-            className="h-10 w-10 shrink-0 rounded-lg"
-            style={{ background: episode.artworkGradient }}
-          />
+          <EpisodeArtwork episode={episode} className="h-10 w-10 shrink-0 rounded-lg" />
           <div className="min-w-0">
             <p className="line-clamp-1 text-[13px] font-medium text-text-primary">{episode.show}</p>
             <p className="text-xs text-text-secondary">

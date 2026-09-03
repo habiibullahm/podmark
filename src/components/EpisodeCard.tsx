@@ -5,6 +5,7 @@ import { getEffectiveStatus, filterNotesByEpisode } from "../lib/episodes";
 import { usePlayer } from "../context/PlayerContext";
 import { useNotesStore } from "../store/useNotesStore";
 import { TagChip } from "./TagChip";
+import { EpisodeArtwork } from "./EpisodeArtwork";
 
 interface EpisodeCardProps {
   episode: Episode;
@@ -27,10 +28,7 @@ export function EpisodeCard({ episode, variant = "list" }: EpisodeCardProps) {
         onClick={() => navigate(`/episode/${episode.id}`)}
         className="flex w-full items-center gap-3 rounded-xl px-5 py-2.5 text-left md:items-start md:border md:border-border md:px-3"
       >
-        <div
-          className="h-11 w-11 shrink-0 rounded-lg"
-          style={{ background: episode.artworkGradient }}
-        />
+        <EpisodeArtwork episode={episode} className="h-11 w-11 shrink-0 rounded-lg" />
         <div className="min-w-0 flex-1">
           <p className="line-clamp-1 text-[14px] font-medium leading-snug text-text-primary md:line-clamp-2">
             {episode.title}
@@ -53,10 +51,7 @@ export function EpisodeCard({ episode, variant = "list" }: EpisodeCardProps) {
       onClick={() => navigate(`/episode/${episode.id}`)}
       className="flex w-full items-start gap-3 rounded-2xl border border-border bg-bg-surface p-3 pb-4 text-left"
     >
-      <div
-        className="h-12 w-12 shrink-0 rounded-xl"
-        style={{ background: episode.artworkGradient }}
-      />
+      <EpisodeArtwork episode={episode} className="h-12 w-12 shrink-0 rounded-xl" />
       <div className="min-w-0 flex-1">
         <p className="line-clamp-2 text-[15px] font-medium leading-snug text-text-primary">
           {episode.title}
