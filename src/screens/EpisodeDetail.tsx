@@ -3,40 +3,60 @@ import { useNavigate, useParams } from "react-router-dom";
 import { episodes } from "../data/mockData";
 import { usePlayer } from "../context/PlayerContext";
 import { useNotesStore } from "../store/useNotesStore";
+import { filterNotesByEpisode } from "../lib/episodes";
 import { TagChip } from "../components/TagChip";
 import { AISummaryCard } from "../components/AISummaryCard";
 import { TimestampNoteBlock } from "../components/TimestampNoteBlock";
 import { HighlightBlock } from "../components/HighlightBlock";
 import { formatTime } from "../lib/format";
 
+const DEFAULT_FREEFORM_NOTES = "- Key theme this episode revolves around...\n- ";
+
 export function EpisodeDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const episode = episodes.find((e) => e.id === id);
 
-  const { episode: playerEpisode, positionSec, openEpisode } = usePlayer();
+  const { episode: playerEpisode, positionSec, openEpisode, getProgressFor } = usePlayer();
   const allNotes = useNotesStore((s) => s.notes);
-  const notes = useMemo(() => allNotes.filter((n) => n.episodeId === id), [allNotes, id]);
-  const addTimestampNote = useNotesStore((s) => s.addTimestampNote);
-  const addHighlight = useNotesStore((s) => s.addHighlight);
+  const notes = useMemo(() => filterNotesByEpisode(allNotes, id ?? ""), [allNotes, id]);
+  const addNote = useNotesStore((s) => s.addNote);
   const generateSummary = useNotesStore((s) => s.generateSummary);
   const aiSummary = useNotesStore((s) => (id ? s.aiSummaries[id] : undefined));
 
-  const [freeformNotes, setFreeformNotes] = useState(
-    "- Key theme this episode revolves around...\n- ",
-  );
+  const [freeformNotes, setFreeformNotes] = useState(DEFAULT_FREEFORM_NOTES);
   const [addingNote, setAddingNote] = useState(false);
   const [addingHighlight, setAddingHighlight] = useState(false);
   const [draftText, setDraftText] = useState("");
   const [draftTag, setDraftTag] = useState(episode?.tags[0] ?? "");
   const [generating, setGenerating] = useState(false);
 
+  // Reset per-episode draft/editor state whenever the route's :id changes —
+  // EpisodeDetail is reused, not remounted, across /episode/:id navigations,
+  // so without this a draft started on one episode (and its tag, which may
+  // not even exist on the next episode) leaks into whichever episode is
+  // opened next.
+  useEffect(() => {
+    setFreeformNotes(DEFAULT_FREEFORM_NOTES);
+    setAddingNote(false);
+    setAddingHighlight(false);
+    setDraftText("");
+    setDraftTag(episode?.tags[0] ?? "");
+    setGenerating(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
   useEffect(() => {
     if (episode) openEpisode(episode);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [episode?.id]);
 
-  const currentPosition = playerEpisode?.id === episode?.id ? positionSec : episode?.progressSec ?? 0;
+  // Prefer the live context position when this episode is the one actually
+  // loaded in the player; otherwise fall back to the last saved progress
+  // (not the static mock progressSec, which the player may have long since
+  // overtaken).
+  const currentPosition =
+    playerEpisode?.id === episode?.id ? positionSec : getProgressFor(episode?.id ?? "");
 
   const sortedNotes = useMemo(
     () => [...notes].sort((a, b) => a.timestampSec - b.timestampSec),
@@ -56,14 +76,14 @@ export function EpisodeDetail() {
 
   const handleAddNote = () => {
     if (!draftText.trim()) return;
-    addTimestampNote(episode.id, currentPosition, draftText.trim(), draftTag ? [draftTag] : []);
+    addNote("timestamp-note", episode.id, currentPosition, draftText.trim(), draftTag ? [draftTag] : []);
     setDraftText("");
     setAddingNote(false);
   };
 
   const handleAddHighlight = () => {
     if (!draftText.trim()) return;
-    addHighlight(episode.id, currentPosition, draftText.trim(), draftTag ? [draftTag] : []);
+    addNote("highlight", episode.id, currentPosition, draftText.trim(), draftTag ? [draftTag] : []);
     setDraftText("");
     setAddingHighlight(false);
   };
@@ -110,7 +130,10 @@ export function EpisodeDetail() {
         </div>
       </div>
 
-      <div id="notes" className="mt-4 flex gap-2 overflow-x-auto px-5 pb-1 no-scrollbar md:px-0 md:flex-wrap md:overflow-visible">
+      <div
+        id="notes"
+        className="mt-4 flex max-w-full flex-nowrap gap-2 overflow-x-auto px-5 pb-1 no-scrollbar md:flex-wrap md:overflow-visible md:px-0"
+      >
         <button
           type="button"
           onClick={() => {

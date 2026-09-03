@@ -1,4 +1,5 @@
 import { usePlayer } from "../context/PlayerContext";
+import { clampPercent } from "../lib/format";
 
 export function CompactAudioPlayer() {
   const { episode, positionSec, isPlaying, togglePlay, skip, speed, cycleSpeed, setExpanded } =
@@ -6,10 +7,10 @@ export function CompactAudioPlayer() {
 
   if (!episode) return null;
 
-  const pct = Math.min(100, (positionSec / episode.durationSec) * 100);
+  const pct = clampPercent(positionSec, episode.durationSec);
 
   return (
-    <div className="border-t border-border bg-bg-surface/95 backdrop-blur">
+    <div className="border-t border-border bg-bg-surface">
       <div className="h-1 w-full bg-bg-surface-alt">
         <div className="h-full bg-accent" style={{ width: `${pct}%` }} />
       </div>
@@ -31,30 +32,32 @@ export function CompactAudioPlayer() {
           </div>
         </button>
 
-        <button
-          type="button"
-          onClick={() => skip(-15)}
-          className="shrink-0 rounded-full p-2 text-text-secondary hover:text-text-primary"
-          aria-label="Back 15 seconds"
-        >
-          ⏪
-        </button>
-        <button
-          type="button"
-          onClick={togglePlay}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-white"
-          aria-label={isPlaying ? "Pause" : "Play"}
-        >
-          {isPlaying ? "⏸" : "▶"}
-        </button>
-        <button
-          type="button"
-          onClick={() => skip(15)}
-          className="shrink-0 rounded-full p-2 text-text-secondary hover:text-text-primary"
-          aria-label="Forward 15 seconds"
-        >
-          ⏩
-        </button>
+        <div className="flex shrink-0 items-center gap-3">
+          <button
+            type="button"
+            onClick={() => skip(-15)}
+            className="shrink-0 rounded-full p-2 text-text-secondary hover:text-text-primary"
+            aria-label="Back 15 seconds"
+          >
+            ⏪
+          </button>
+          <button
+            type="button"
+            onClick={togglePlay}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-white"
+            aria-label={isPlaying ? "Pause" : "Play"}
+          >
+            {isPlaying ? "⏸" : "▶"}
+          </button>
+          <button
+            type="button"
+            onClick={() => skip(15)}
+            className="shrink-0 rounded-full p-2 text-text-secondary hover:text-text-primary"
+            aria-label="Forward 15 seconds"
+          >
+            ⏩
+          </button>
+        </div>
         <button
           type="button"
           onClick={cycleSpeed}

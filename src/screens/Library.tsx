@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { allTags, episodes, folders } from "../data/mockData";
 import { useNotesStore } from "../store/useNotesStore";
+import { usePlayer } from "../context/PlayerContext";
+import { getEffectiveStatus } from "../lib/episodes";
 import { SearchBar } from "../components/SearchBar";
 import { SegmentedTabSwitcher } from "../components/SegmentedTabSwitcher";
 import { TagChip } from "../components/TagChip";
@@ -25,6 +27,7 @@ export function Library() {
   const [search, setSearch] = useState("");
   const [activeTags, setActiveTags] = useState<string[]>([]);
   const storeNotes = useNotesStore((s) => s.notes);
+  const { getProgressFor } = usePlayer();
 
   const toggleTag = (tag: string) =>
     setActiveTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
@@ -35,13 +38,20 @@ export function Library() {
     return matchesSearch && matchesTags;
   };
 
-  const inProgress = useMemo(
-    () => episodes.filter((e) => e.status === "in-progress" && matchesFilters(e.tags, e.title)),
-    [search, activeTags],
+  // Not memoized: status depends on live playback progress, and the
+  // Provider re-renders every ~1s while an episode plays, so this recomputes
+  // on that cadence (not just on user-driven re-renders like a search
+  // keystroke). The mock episode list is tiny, so that's cheap here, but
+  // don't assume this only runs rarely.
+  const inProgress = episodes.filter(
+    (e) =>
+      getEffectiveStatus(e, getProgressFor(e.id)) === "in-progress" &&
+      matchesFilters(e.tags, e.title),
   );
-  const finished = useMemo(
-    () => episodes.filter((e) => e.status === "finished" && matchesFilters(e.tags, e.title)),
-    [search, activeTags],
+  const finished = episodes.filter(
+    (e) =>
+      getEffectiveStatus(e, getProgressFor(e.id)) === "finished" &&
+      matchesFilters(e.tags, e.title),
   );
   const takeaways = useMemo(
     () => [...storeNotes].reverse().filter((n) => matchesFilters(n.tags, n.text)),
@@ -49,7 +59,7 @@ export function Library() {
   );
 
   return (
-    <div className="pb-24 md:pb-8">
+    <div className="pb-40 md:pb-16">
       <div className="flex items-center justify-between px-5 pb-4 pt-[calc(env(safe-area-inset-top)+1rem)] md:px-0 md:pt-0">
         <h1 className="text-[28px] font-bold text-text-primary">Library</h1>
         <button type="button" className="text-sm font-medium text-accent">
@@ -59,7 +69,7 @@ export function Library() {
 
       <SearchBar value={search} onChange={setSearch} />
 
-      <div className="mt-3 flex gap-2 overflow-x-auto px-5 pb-1 no-scrollbar md:px-0">
+      <div className="mt-3 flex max-w-full flex-nowrap gap-2 overflow-x-auto px-5 pb-1 no-scrollbar md:flex-wrap md:overflow-visible md:px-0">
         {allTags.map((tag) => (
           <TagChip key={tag} label={tag} active={activeTags.includes(tag)} onClick={() => toggleTag(tag)} />
         ))}
@@ -69,7 +79,7 @@ export function Library() {
         <SegmentedTabSwitcher tabs={TABS} active={tab} onChange={setTab} />
       </div>
 
-      <div className="mt-4 space-y-2.5 px-5 md:grid md:grid-cols-2 md:gap-3 md:space-y-0 md:px-0 lg:grid-cols-3">
+      <div className="mt-4 space-y-2.5 px-5 md:px-0 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0 xl:grid-cols-3">
         {tab === "in-progress" &&
           (inProgress.length > 0 ? (
             inProgress.map((ep) => <EpisodeCard key={ep.id} episode={ep} />)
@@ -103,9 +113,9 @@ export function Library() {
       </div>
 
       {tab === "takeaways" && (
-        <div className="mt-1 grid grid-cols-1 gap-2.5 px-5 md:grid-cols-2 md:px-0 lg:grid-cols-3">
+        <div className="mt-1 grid grid-cols-1 gap-2.5 px-5 md:px-0 lg:grid-cols-2 xl:grid-cols-3">
           {takeaways.length > 0 ? (
-            takeaways.map((note) => <TakeawayCard key={note.id} note={note} fullWidth />)
+            takeaways.map((note) => <TakeawayCard key={note.id} note={note} />)
           ) : (
             <EmptyState icon="⭐" text="No takeaways yet — save your first highlight." />
           )}
