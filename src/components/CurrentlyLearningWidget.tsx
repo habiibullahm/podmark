@@ -1,13 +1,19 @@
 import { useNavigate } from "react-router-dom";
 import type { Episode } from "../data/types";
-import { formatTime } from "../lib/format";
+import { clampPercent, formatTime } from "../lib/format";
 import { usePlayer } from "../context/PlayerContext";
 
-export function CurrentlyLearningWidget({ episode }: { episode: Episode }) {
+export function CurrentlyLearningWidget({
+  episode,
+  hasStarted = true,
+}: {
+  episode: Episode;
+  hasStarted?: boolean;
+}) {
   const navigate = useNavigate();
   const { playEpisode, getProgressFor } = usePlayer();
   const progressSec = getProgressFor(episode.id);
-  const pct = Math.min(100, Math.round((progressSec / episode.durationSec) * 100));
+  const pct = clampPercent(progressSec, episode.durationSec);
 
   return (
     <div className="mx-5 rounded-2xl border border-border bg-bg-surface p-4 md:mx-0 md:h-full">
@@ -42,16 +48,18 @@ export function CurrentlyLearningWidget({ episode }: { episode: Episode }) {
             playEpisode(episode);
             navigate(`/episode/${episode.id}`);
           }}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-accent py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent/90"
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent/90"
         >
-          <span>▶</span> Resume Listening
+          <span className="inline-flex items-center leading-none">▶</span>
+          {hasStarted ? "Resume Listening" : "Start Listening"}
         </button>
         <button
           type="button"
           onClick={() => navigate(`/episode/${episode.id}#notes`)}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-border py-2.5 text-sm font-semibold text-text-primary transition-colors hover:border-accent/60"
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border py-2.5 text-sm font-semibold text-text-primary transition-colors hover:border-accent/60"
         >
-          <span>📝</span> Jump to Notes
+          <span className="inline-flex items-center leading-none">📝</span>
+          Jump to Notes
         </button>
       </div>
     </div>

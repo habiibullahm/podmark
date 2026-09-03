@@ -29,11 +29,21 @@ interface PlayerContextValue {
 
 const SPEEDS = [1, 1.2, 1.5, 2];
 const PROGRESS_STORAGE_KEY = "podbrain-progress";
+const PERSIST_EVERY_N_TICKS = 5;
 
 function loadStoredProgress(): Record<string, number> {
   try {
     const raw = localStorage.getItem(PROGRESS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null) return {};
+    const result: Record<string, number> = {};
+    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        result[key] = value;
+      }
+    }
+    return result;
   } catch {
     return {};
   }
@@ -56,28 +66,82 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [speedIndex, setSpeedIndex] = useState(0);
   const [seekFlashSec, setSeekFlashSec] = useState<number | null>(null);
-  const overrideProgress = useRef<Record<string, number>>(loadStoredProgress());
 
+  // Lazy-init without re-reading localStorage on every render (useRef has no
+  // lazy-initializer form, so a plain useRef(loadStoredProgress()) would
+  // re-invoke loadStoredProgress() on every render even though only the
+  // first result is ever kept).
+  const overrideProgress = useRef<Record<string, number>>({});
+  const progressLoaded = useRef(false);
+  if (!progressLoaded.current) {
+    overrideProgress.current = loadStoredProgress();
+    progressLoaded.current = true;
+  }
+
+  const seekFlashTimeout = useRef<number | null>(null);
+  const tickCount = useRef(0);
+
+  // Single owner of "write progress, and decide whether to flush it to
+  // localStorage now" — every code path that changes position (ticking,
+  // seeking) goes through this instead of duplicating the write.
+  const persistProgress = useCallback((episodeId: string, position: number, immediate: boolean) => {
+    overrideProgress.current[episodeId] = position;
+    if (immediate) {
+      saveStoredProgress(overrideProgress.current);
+    }
+  }, []);
+
+  // Pure position tick — no side effects inside the updater, so this stays
+  // safe under React StrictMode's dev-mode double-invocation of updaters.
   useEffect(() => {
     if (!isPlaying || !episode) return;
     const interval = setInterval(() => {
-      setPositionSec((prev) => {
-        const next = Math.min(prev + SPEEDS[speedIndex], episode.durationSec);
-        overrideProgress.current[episode.id] = next;
-        saveStoredProgress(overrideProgress.current);
-        if (next >= episode.durationSec) setIsPlaying(false);
-        return next;
-      });
+      tickCount.current += 1;
+      setPositionSec((prev) => Math.min(prev + SPEEDS[speedIndex], episode.durationSec));
     }, 1000);
     return () => clearInterval(interval);
   }, [isPlaying, episode, speedIndex]);
 
-  const playEpisode = useCallback((ep: Episode) => {
-    setEpisode(ep);
-    const startAt = overrideProgress.current[ep.id] ?? ep.progressSec;
-    setPositionSec(startAt);
-    setIsPlaying(true);
+  // Side effects (ref mutation, throttled persistence, end-of-episode stop)
+  // live here, reacting to positionSec instead of running inside the
+  // setState updater.
+  useEffect(() => {
+    if (!episode) return;
+    const shouldPersistNow = !isPlaying || tickCount.current % PERSIST_EVERY_N_TICKS === 0;
+    persistProgress(episode.id, positionSec, shouldPersistNow);
+    if (positionSec >= episode.durationSec) {
+      setIsPlaying(false);
+    }
+  }, [positionSec, episode, isPlaying, persistProgress]);
+
+  // Safety net for the throttled persistence above: whatever the last
+  // written-but-not-yet-flushed position is, flush it the moment the tab is
+  // hidden or closed, so at most one throttle window's progress is ever at
+  // risk instead of it being lost until the next multiple-of-N tick.
+  useEffect(() => {
+    const flush = () => saveStoredProgress(overrideProgress.current);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pagehide", flush);
+    };
   }, []);
+
+  const playEpisode = useCallback(
+    (ep: Episode) => {
+      if (episode?.id !== ep.id) {
+        const startAt = overrideProgress.current[ep.id] ?? ep.progressSec;
+        setPositionSec(startAt);
+      }
+      setEpisode(ep);
+      setIsPlaying(true);
+    },
+    [episode],
+  );
 
   const openEpisode = useCallback(
     (ep: Episode) => {
@@ -100,12 +164,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       if (!episode) return;
       const clamped = Math.max(0, Math.min(sec, episode.durationSec));
       setPositionSec(clamped);
-      overrideProgress.current[episode.id] = clamped;
-      saveStoredProgress(overrideProgress.current);
+      persistProgress(episode.id, clamped, true);
       setSeekFlashSec(clamped);
-      window.setTimeout(() => setSeekFlashSec(null), 900);
+      if (seekFlashTimeout.current !== null) {
+        window.clearTimeout(seekFlashTimeout.current);
+      }
+      seekFlashTimeout.current = window.setTimeout(() => setSeekFlashSec(null), 900);
     },
-    [episode],
+    [episode, persistProgress],
   );
 
   const skip = useCallback(
@@ -120,10 +186,19 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setSpeedIndex((i) => (i + 1) % SPEEDS.length);
   }, []);
 
-  const getProgressFor = useCallback((episodeId: string) => {
-    const ep = initialEpisodes.find((e) => e.id === episodeId);
-    return overrideProgress.current[episodeId] ?? ep?.progressSec ?? 0;
-  }, []);
+  // For the episode currently loaded in the player, read the live state
+  // directly instead of the ref — the ref is only updated in the effect
+  // above, which runs one commit behind the positionSec change, so reading
+  // it here for the active episode would show a value ~1 tick stale
+  // relative to what CompactAudioPlayer/FullScreenPlayerModal display.
+  const getProgressFor = useCallback(
+    (episodeId: string) => {
+      if (episode?.id === episodeId) return positionSec;
+      const ep = initialEpisodes.find((e) => e.id === episodeId);
+      return overrideProgress.current[episodeId] ?? ep?.progressSec ?? 0;
+    },
+    [episode, positionSec],
+  );
 
   return (
     <PlayerContext.Provider

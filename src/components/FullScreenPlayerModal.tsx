@@ -1,5 +1,5 @@
 import { usePlayer } from "../context/PlayerContext";
-import { formatTime } from "../lib/format";
+import { clampPercent, formatTime } from "../lib/format";
 
 export function FullScreenPlayerModal() {
   const {
@@ -17,7 +17,7 @@ export function FullScreenPlayerModal() {
 
   if (!episode || !isExpanded) return null;
 
-  const pct = Math.min(100, (positionSec / episode.durationSec) * 100);
+  const pct = clampPercent(positionSec, episode.durationSec);
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 md:p-6">

@@ -8,3 +8,8 @@ export function formatTime(totalSeconds: number): string {
   }
   return `${m}:${String(sec).padStart(2, "0")}`;
 }
+
+export function clampPercent(current: number, total: number): number {
+  if (!total) return 0;
+  return Math.min(100, Math.round((current / total) * 100));
+}

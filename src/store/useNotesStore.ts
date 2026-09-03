@@ -1,15 +1,19 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { noteBlocks as initialNoteBlocks } from "../data/mockData";
-import type { NoteBlock } from "../data/types";
+import type { NoteBlock, NoteBlockType } from "../data/types";
 
 interface NotesState {
   notes: NoteBlock[];
   aiSummaries: Record<string, string[]>; // episodeId -> bullet points
-  addTimestampNote: (episodeId: string, timestampSec: number, text: string, tags?: string[]) => void;
-  addHighlight: (episodeId: string, timestampSec: number, text: string, tags?: string[]) => void;
+  addNote: (
+    type: NoteBlockType,
+    episodeId: string,
+    timestampSec: number,
+    text: string,
+    tags?: string[],
+  ) => void;
   generateSummary: (episodeId: string, episodeTitle: string) => void;
-  notesForEpisode: (episodeId: string) => NoteBlock[];
 }
 
 function generateNoteId(): string {
@@ -18,32 +22,17 @@ function generateNoteId(): string {
 
 export const useNotesStore = create<NotesState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       notes: initialNoteBlocks,
       aiSummaries: {},
-      addTimestampNote: (episodeId, timestampSec, text, tags = []) =>
+      addNote: (type, episodeId, timestampSec, text, tags = []) =>
         set((state) => ({
           notes: [
             ...state.notes,
             {
               id: generateNoteId(),
               episodeId,
-              type: "timestamp-note",
-              timestampSec,
-              text,
-              tags,
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        })),
-      addHighlight: (episodeId, timestampSec, text, tags = []) =>
-        set((state) => ({
-          notes: [
-            ...state.notes,
-            {
-              id: generateNoteId(),
-              episodeId,
-              type: "highlight",
+              type,
               timestampSec,
               text,
               tags,
@@ -63,7 +52,6 @@ export const useNotesStore = create<NotesState>()(
             ],
           },
         })),
-      notesForEpisode: (episodeId) => get().notes.filter((n) => n.episodeId === episodeId),
     }),
     { name: "podbrain-notes" },
   ),

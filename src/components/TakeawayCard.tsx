@@ -4,23 +4,13 @@ import { episodes } from "../data/mockData";
 import { formatTime } from "../lib/format";
 import { TagChip } from "./TagChip";
 
-export function TakeawayCard({
-  note,
-  fullWidth = false,
-}: {
-  note: NoteBlock;
-  fullWidth?: boolean;
-}) {
+export function TakeawayCard({ note }: { note: NoteBlock }) {
   const navigate = useNavigate();
   const episode = episodes.find((e) => e.id === note.episodeId);
 
   return (
-    <div
-      className={`shrink-0 snap-start rounded-2xl border border-border bg-bg-surface p-4 ${
-        fullWidth ? "w-full" : "w-[270px] md:w-full"
-      }`}
-    >
-      <span className="text-xs text-text-tertiary">
+    <div className="w-full rounded-2xl border border-border bg-bg-surface p-3 pb-4">
+      <span className="text-sm text-text-tertiary">
         {note.type === "highlight" ? "⭐" : "🕐"}
       </span>
 
