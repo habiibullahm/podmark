@@ -53,6 +53,30 @@ test.describe("Episode Detail", () => {
     await expect(page.getByPlaceholder(/Write freeform Markdown notes/)).toContainText("Core thesis");
   });
 
+  test("notes preview renders Markdown and round-trips back to edit", async ({ page }) => {
+    const notes = page.getByPlaceholder(/Write freeform Markdown notes/);
+    await notes.fill("# Heading\n\n- point one\n- point two\n\n**bold text**");
+
+    await page.getByRole("button", { name: "preview", exact: true }).click();
+
+    await expect(notes).not.toBeVisible();
+    await expect(page.getByRole("heading", { name: "Heading", level: 1 })).toBeVisible();
+    await expect(page.getByText("point one")).toBeVisible();
+    await expect(page.getByText("bold text")).toBeVisible();
+
+    await page.getByRole("button", { name: "edit", exact: true }).click();
+    await expect(notes).toHaveValue(/# Heading/);
+  });
+
+  test("preview shows an empty-state message for blank notes", async ({ page }) => {
+    const notes = page.getByPlaceholder(/Write freeform Markdown notes/);
+    await notes.fill("");
+
+    await page.getByRole("button", { name: "preview", exact: true }).click();
+
+    await expect(page.getByText(/Nothing to preview yet/)).toBeVisible();
+  });
+
   test("play/pause toggles the persistent mini player", async ({ page }) => {
     await page.getByRole("button", { name: "Play" }).click();
 

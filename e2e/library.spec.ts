@@ -48,4 +48,13 @@ test.describe("Library", () => {
     await expect(page.getByText("Building a Second Brain: The Case for Structured Notes")).toBeVisible();
     await expect(page.getByText("How Transformers Actually Work")).not.toBeVisible();
   });
+
+  test("Export All downloads a Markdown file of notes", async ({ page }) => {
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByRole("button", { name: "Export All ↗" }).click(),
+    ]);
+
+    expect(download.suggestedFilename()).toMatch(/^podbrain-export-\d{4}-\d{2}-\d{2}\.md$/);
+  });
 });
