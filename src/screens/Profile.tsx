@@ -71,8 +71,8 @@ export function Profile() {
             role="switch"
             aria-checked={notificationsEnabled}
             onClick={toggleNotifications}
-            className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-              notificationsEnabled ? "bg-accent" : "bg-bg-surface-alt"
+            className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors ${
+              notificationsEnabled ? "border-accent bg-accent" : "border-border bg-bg-surface-alt"
             }`}
           >
             <span
