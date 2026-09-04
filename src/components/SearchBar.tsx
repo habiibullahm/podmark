@@ -6,7 +6,7 @@ interface SearchBarProps {
 
 export function SearchBar({ value, onChange, placeholder }: SearchBarProps) {
   return (
-    <div className="mx-5 flex items-center gap-2 rounded-xl border border-border bg-bg-surface-alt px-3 py-2.5 md:mx-0">
+    <div className="flex items-center gap-2 rounded-xl border border-border bg-bg-surface-alt px-3 py-2.5">
       <span className="text-text-tertiary">🔍</span>
       <input
         type="text"
