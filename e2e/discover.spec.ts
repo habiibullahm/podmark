@@ -62,6 +62,31 @@ test.describe("Discover (real podcast search)", () => {
     await expect(page.getByRole("button", { name: "#technology" })).toBeVisible();
   });
 
+  test("clicking an added card navigates to its episode detail", async ({ page }) => {
+    await page.route("https://itunes.apple.com/search**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(MOCK_ITUNES_RESPONSE),
+      }),
+    );
+
+    await page.goto("/#/library");
+    await page.getByRole("button", { name: "Discover" }).click();
+    await page.getByPlaceholder("Search real podcasts & episodes...").fill("test query");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await page.getByRole("button", { name: "+ Add" }).click();
+    await expect(page.getByRole("button", { name: "✓ Added" })).toBeVisible();
+
+    // Newly-added episodes start "not-started", so they don't show up in any
+    // Library tab — clicking the now-added Discover card is the only way back
+    // to it, and must route to its episode detail page.
+    await page.getByText("E2E Mock Episode").click();
+
+    await expect(page).toHaveURL(/#\/episode\/itunes-999888777/);
+    await expect(page.getByText("E2E Mock Episode").first()).toBeVisible();
+  });
+
   test("shows an error state when the search request fails", async ({ page }) => {
     await page.route("https://itunes.apple.com/search**", (route) => route.abort("failed"));
 
