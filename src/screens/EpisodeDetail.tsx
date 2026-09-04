@@ -28,11 +28,18 @@ export function EpisodeDetail() {
   const generateSummary = useNotesStore((s) => s.generateSummary);
   const aiSummary = useNotesStore((s) => (id ? s.aiSummaries[id] : undefined));
   const aiSummaryError = useNotesStore((s) => (id ? s.aiSummaryErrors[id] : undefined));
+  const storedFreeformNotes = useNotesStore((s) => (id ? s.freeformNotes[id] : undefined));
+  const setFreeformNotesForEpisode = useNotesStore((s) => s.setFreeformNotes);
   const folders = useFoldersStore((s) => s.folders);
   const addEpisodeToFolder = useFoldersStore((s) => s.addEpisodeToFolder);
   const removeEpisodeFromFolder = useFoldersStore((s) => s.removeEpisodeFromFolder);
 
-  const [freeformNotes, setFreeformNotes] = useState(DEFAULT_FREEFORM_NOTES);
+  const freeformNotes = storedFreeformNotes ?? DEFAULT_FREEFORM_NOTES;
+  const setFreeformNotes = (update: string | ((prev: string) => string)) => {
+    if (!id) return;
+    const next = typeof update === "function" ? (update as (prev: string) => string)(freeformNotes) : update;
+    setFreeformNotesForEpisode(id, next);
+  };
   const [addingNote, setAddingNote] = useState(false);
   const [addingHighlight, setAddingHighlight] = useState(false);
   const [draftText, setDraftText] = useState("");
@@ -40,6 +47,7 @@ export function EpisodeDetail() {
   const [generating, setGenerating] = useState(false);
   const [folderMenuOpen, setFolderMenuOpen] = useState(false);
   const folderMenuRef = useRef<HTMLDivElement>(null);
+  const notesEditorRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!folderMenuOpen) return;
@@ -52,13 +60,13 @@ export function EpisodeDetail() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [folderMenuOpen]);
 
-  // Reset per-episode draft/editor state whenever the route's :id changes —
+  // Reset per-episode draft/editor UI state whenever the route's :id changes —
   // EpisodeDetail is reused, not remounted, across /episode/:id navigations,
   // so without this a draft started on one episode (and its tag, which may
   // not even exist on the next episode) leaks into whichever episode is
-  // opened next.
+  // opened next. freeformNotes itself doesn't need resetting here — it's
+  // now looked up per-episode from the store, not local state.
   useEffect(() => {
-    setFreeformNotes(DEFAULT_FREEFORM_NOTES);
     setAddingNote(false);
     setAddingHighlight(false);
     setDraftText("");
@@ -277,12 +285,22 @@ export function EpisodeDetail() {
           <AISummaryCard
             bullets={aiSummary}
             onRegenerate={handleSummarize}
-            onInsert={(bullet) => setFreeformNotes((prev) => `${prev}\n- ${bullet}`)}
+            onInsert={(bullet) => {
+              setFreeformNotes((prev) => `${prev}\n- ${bullet}`);
+              // Without this, an inserted bullet lands past the bottom of the
+              // (short, fixed-height) notes textarea with no visible change,
+              // making the button look like it did nothing.
+              requestAnimationFrame(() => {
+                notesEditorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                const textarea = notesEditorRef.current?.querySelector("textarea");
+                if (textarea) textarea.scrollTop = textarea.scrollHeight;
+              });
+            }}
           />
         </div>
       )}
 
-      <div className="mx-5 mt-4 md:mx-0">
+      <div ref={notesEditorRef} className="mx-5 mt-4 md:mx-0">
         <MarkdownNoteEditor
           value={freeformNotes}
           onChange={setFreeformNotes}
