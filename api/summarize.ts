@@ -15,7 +15,9 @@ interface GroqErrorResponse {
 }
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_MODEL = "llama-3.3-70b-versatile";
+// Model availability varies per Groq account/tier — override with the
+// GROQ_MODEL env var if the default isn't enabled on your key.
+const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
 
 const SYSTEM_PROMPT =
   'You summarize podcast episodes into concise, insight-dense bullet points for someone deciding what to listen to and take notes on. Output ONLY 3-5 bullet points, one per line, each starting with "- ". No preamble, no headers, no closing remarks.';
@@ -52,7 +54,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
       },
       body: JSON.stringify({
-        model: GROQ_MODEL,
+        model: process.env.GROQ_MODEL || DEFAULT_GROQ_MODEL,
         max_tokens: 1024,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
@@ -79,6 +81,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         res
           .status(402)
           .json({ error: "The Groq account is out of credits — check console.groq.com/settings/billing." });
+      } else if (groqRes.status === 404 && /model/i.test(message)) {
+        res.status(500).json({
+          error: `AI summarization is misconfigured — the model isn't available on this account. Set GROQ_MODEL to one this key can access.`,
+        });
       } else {
         res.status(500).json({ error: "AI summarization failed — try again later." });
       }
