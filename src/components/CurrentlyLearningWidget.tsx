@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import type { Episode } from "../data/types";
 import { clampPercent, formatTime } from "../lib/format";
 import { usePlayer } from "../context/PlayerContext";
+import { EpisodeArtwork } from "./EpisodeArtwork";
 
 export function CurrentlyLearningWidget({
   episode,
@@ -18,10 +19,7 @@ export function CurrentlyLearningWidget({
   return (
     <div className="mx-5 rounded-2xl border border-border bg-bg-surface p-4 md:mx-0 md:h-full">
       <div className="flex items-center gap-3">
-        <div
-          className="h-14 w-14 shrink-0 rounded-xl"
-          style={{ background: episode.artworkGradient }}
-        />
+        <EpisodeArtwork episode={episode} className="h-14 w-14 shrink-0 rounded-xl" />
         <div className="min-w-0">
           <p className="text-[11px] font-medium uppercase tracking-wide text-text-tertiary">
             {episode.show}

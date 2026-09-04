@@ -1,11 +1,12 @@
 import { useNavigate } from "react-router-dom";
 import type { NoteBlock } from "../data/types";
-import { episodes } from "../data/mockData";
+import { useEpisodesStore } from "../store/useEpisodesStore";
 import { formatTime } from "../lib/format";
 import { TagChip } from "./TagChip";
 
 export function TakeawayCard({ note }: { note: NoteBlock }) {
   const navigate = useNavigate();
+  const episodes = useEpisodesStore((s) => s.episodes);
   const episode = episodes.find((e) => e.id === note.episodeId);
 
   return (
