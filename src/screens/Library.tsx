@@ -30,8 +30,15 @@ const TABS: { key: TabKey; label: string }[] = [
 ];
 
 function DiscoverResultCard({ episode, onAdd, added }: { episode: Episode; onAdd: () => void; added: boolean }) {
+  const navigate = useNavigate();
+
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-border bg-bg-surface p-3">
+    <div
+      onClick={added ? () => navigate(`/episode/${episode.id}`) : undefined}
+      className={`flex items-center gap-3 rounded-2xl border border-border bg-bg-surface p-3 ${
+        added ? "cursor-pointer hover:border-accent/60" : ""
+      }`}
+    >
       <EpisodeArtwork episode={episode} className="h-12 w-12 shrink-0 rounded-xl" />
       <div className="min-w-0 flex-1">
         <p className="line-clamp-2 text-[14px] font-medium leading-snug text-text-primary">
@@ -44,7 +51,10 @@ function DiscoverResultCard({ episode, onAdd, added }: { episode: Episode; onAdd
       </div>
       <button
         type="button"
-        onClick={onAdd}
+        onClick={(e) => {
+          e.stopPropagation();
+          onAdd();
+        }}
         disabled={added}
         className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
           added
