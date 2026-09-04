@@ -174,7 +174,9 @@ export function Library() {
         </button>
       </div>
 
-      <SearchBar value={search} onChange={setSearch} />
+      <div className="px-5 md:px-0">
+        <SearchBar value={search} onChange={setSearch} />
+      </div>
 
       <div className="mt-3 flex max-w-full flex-nowrap gap-2 overflow-x-auto px-5 pb-1 no-scrollbar md:flex-wrap md:overflow-visible md:px-0">
         {allTags.map((tag) => (
