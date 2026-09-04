@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { folders } from "../data/mockData";
 import { useNotesStore } from "../store/useNotesStore";
 import { useEpisodesStore } from "../store/useEpisodesStore";
 import { useSettingsStore } from "../store/useSettingsStore";
+import { useFoldersStore } from "../store/useFoldersStore";
 import { usePlayer } from "../context/PlayerContext";
 import { getEffectiveStatus } from "../lib/episodes";
 import { searchPodcastEpisodes } from "../lib/itunesApi";
@@ -69,7 +69,6 @@ function DiscoverResultCard({ episode, onAdd, added }: { episode: Episode; onAdd
 }
 
 export function Library() {
-  const navigate = useNavigate();
   const [tab, setTab] = useState<TabKey>("in-progress");
   const [search, setSearch] = useState("");
   const [activeTags, setActiveTags] = useState<string[]>([]);
@@ -77,7 +76,25 @@ export function Library() {
   const episodes = useEpisodesStore((s) => s.episodes);
   const addEpisode = useEpisodesStore((s) => s.addEpisode);
   const exportFormat = useSettingsStore((s) => s.exportFormat);
+  const folders = useFoldersStore((s) => s.folders);
+  const addFolder = useFoldersStore((s) => s.addFolder);
   const { getProgressFor } = usePlayer();
+
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [newFolderOpen, setNewFolderOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const selectedFolder = folders.find((f) => f.id === selectedFolderId) ?? null;
+  const folderEpisodes = selectedFolder
+    ? episodes.filter((e) => selectedFolder.episodeIds.includes(e.id))
+    : [];
+
+  const handleCreateFolder = () => {
+    const name = newFolderName.trim();
+    if (!name) return;
+    addFolder(name);
+    setNewFolderName("");
+    setNewFolderOpen(false);
+  };
 
   const handleExportAll = () => {
     const markdown = buildLibraryMarkdown(episodes, storeNotes, exportFormat);
@@ -165,7 +182,15 @@ export function Library() {
       </div>
 
       <div className="mt-3">
-        <SegmentedTabSwitcher tabs={TABS} active={tab} onChange={setTab} />
+        <SegmentedTabSwitcher
+          tabs={TABS}
+          active={tab}
+          onChange={(t) => {
+            setTab(t);
+            setSelectedFolderId(null);
+            setNewFolderOpen(false);
+          }}
+        />
       </div>
 
       <div className="mt-4 space-y-2.5 px-5 md:px-0">
@@ -183,22 +208,77 @@ export function Library() {
             <EmptyState icon="✅" text="No finished episodes yet." />
           ))}
 
-        {tab === "folders" &&
-          (folders.length > 0 ? (
-            <>
-              {folders.map((f) => (
-                <FolderCard key={f.id} folder={f} onClick={() => navigate("/library")} />
-              ))}
+        {tab === "folders" && selectedFolder && (
+          <>
+            <button
+              type="button"
+              onClick={() => setSelectedFolderId(null)}
+              className="flex items-center gap-1.5 text-sm font-medium text-text-secondary hover:text-text-primary"
+            >
+              ← All Folders
+            </button>
+            <p className="text-[17px] font-semibold text-text-primary">{selectedFolder.name}</p>
+            {folderEpisodes.length > 0 ? (
+              folderEpisodes.map((ep) => <EpisodeCard key={ep.id} episode={ep} />)
+            ) : (
+              <EmptyState
+                icon="📁"
+                text="No episodes in this folder yet — add one from an episode's ⋯ menu."
+              />
+            )}
+          </>
+        )}
+
+        {tab === "folders" && !selectedFolder && (
+          <>
+            {folders.map((f) => (
+              <FolderCard key={f.id} folder={f} onClick={() => setSelectedFolderId(f.id)} />
+            ))}
+
+            {newFolderOpen ? (
+              <div className="flex items-center gap-2 rounded-2xl border border-accent/40 bg-bg-surface p-3">
+                <input
+                  autoFocus
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleCreateFolder()}
+                  placeholder="Folder name..."
+                  className="min-w-0 flex-1 bg-transparent text-[14px] text-text-primary placeholder:text-text-tertiary focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewFolderOpen(false);
+                    setNewFolderName("");
+                  }}
+                  className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-text-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateFolder}
+                  disabled={!newFolderName.trim()}
+                  className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                >
+                  Create
+                </button>
+              </div>
+            ) : (
               <button
                 type="button"
+                onClick={() => setNewFolderOpen(true)}
                 className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border py-4 text-sm font-medium text-text-secondary hover:border-accent/60 hover:text-accent"
               >
                 + New Folder
               </button>
-            </>
-          ) : (
-            <EmptyState icon="📁" text="No custom folders yet." />
-          ))}
+            )}
+
+            {folders.length === 0 && !newFolderOpen && (
+              <EmptyState icon="📁" text="No custom folders yet." />
+            )}
+          </>
+        )}
       </div>
 
       {tab === "takeaways" && (

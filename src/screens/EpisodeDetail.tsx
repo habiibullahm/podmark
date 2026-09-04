@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useEpisodesStore } from "../store/useEpisodesStore";
+import { useFoldersStore } from "../store/useFoldersStore";
 import { usePlayer } from "../context/PlayerContext";
 import { useNotesStore } from "../store/useNotesStore";
 import { filterNotesByEpisode } from "../lib/episodes";
@@ -26,6 +27,9 @@ export function EpisodeDetail() {
   const addNote = useNotesStore((s) => s.addNote);
   const generateSummary = useNotesStore((s) => s.generateSummary);
   const aiSummary = useNotesStore((s) => (id ? s.aiSummaries[id] : undefined));
+  const folders = useFoldersStore((s) => s.folders);
+  const addEpisodeToFolder = useFoldersStore((s) => s.addEpisodeToFolder);
+  const removeEpisodeFromFolder = useFoldersStore((s) => s.removeEpisodeFromFolder);
 
   const [freeformNotes, setFreeformNotes] = useState(DEFAULT_FREEFORM_NOTES);
   const [addingNote, setAddingNote] = useState(false);
@@ -33,6 +37,7 @@ export function EpisodeDetail() {
   const [draftText, setDraftText] = useState("");
   const [draftTag, setDraftTag] = useState(episode?.tags[0] ?? "");
   const [generating, setGenerating] = useState(false);
+  const [folderMenuOpen, setFolderMenuOpen] = useState(false);
 
   // Reset per-episode draft/editor state whenever the route's :id changes —
   // EpisodeDetail is reused, not remounted, across /episode/:id navigations,
@@ -46,6 +51,7 @@ export function EpisodeDetail() {
     setDraftText("");
     setDraftTag(episode?.tags[0] ?? "");
     setGenerating(false);
+    setFolderMenuOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -108,9 +114,43 @@ export function EpisodeDetail() {
         <p className="line-clamp-1 max-w-[240px] text-[13px] font-medium text-text-primary">
           {episode.title}
         </p>
-        <button type="button" className="text-lg text-text-secondary">
-          ⋯
-        </button>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setFolderMenuOpen((v) => !v)}
+            className="text-lg text-text-secondary"
+          >
+            ⋯
+          </button>
+          {folderMenuOpen && (
+            <div className="absolute right-0 top-full z-20 mt-2 w-56 rounded-xl border border-border bg-bg-surface p-1.5 shadow-lg">
+              <p className="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">
+                Add to folder
+              </p>
+              {folders.length === 0 && (
+                <p className="px-2.5 py-1.5 text-xs text-text-secondary">
+                  No folders yet — create one from Library.
+                </p>
+              )}
+              {folders.map((f) => {
+                const inFolder = f.episodeIds.includes(episode.id);
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() =>
+                      inFolder ? removeEpisodeFromFolder(f.id, episode.id) : addEpisodeToFolder(f.id, episode.id)
+                    }
+                    className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-sm text-text-primary hover:bg-bg-surface-alt"
+                  >
+                    <span className="truncate">📁 {f.name}</span>
+                    {inFolder && <span className="shrink-0 text-accent">✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="px-5 pt-4 md:px-0 md:pt-6">
