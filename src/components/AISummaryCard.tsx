@@ -6,7 +6,7 @@ interface AISummaryCardProps {
 
 export function AISummaryCard({ bullets, onRegenerate, onInsert }: AISummaryCardProps) {
   return (
-    <div className="rounded-xl border border-accent/30 bg-accent/[.06] p-3.5">
+    <div className="animate-fade-slide-up rounded-xl border border-accent/30 bg-accent/[.06] p-3.5">
       <div className="flex items-center justify-between">
         <p className="flex items-center gap-1.5 text-[13px] font-semibold text-accent">
           ✨ AI Summary
@@ -21,7 +21,11 @@ export function AISummaryCard({ bullets, onRegenerate, onInsert }: AISummaryCard
       </div>
       <ul className="mt-2.5 space-y-2.5">
         {bullets.map((bullet, i) => (
-          <li key={i} className="flex items-start justify-between gap-2">
+          <li
+            key={i}
+            className="animate-fade-in flex items-start justify-between gap-2"
+            style={{ animationDelay: `${i * 70}ms` }}
+          >
             <span className="text-[13px] leading-relaxed text-text-primary">• {bullet}</span>
             <button
               type="button"
