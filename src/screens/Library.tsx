@@ -3,9 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { folders } from "../data/mockData";
 import { useNotesStore } from "../store/useNotesStore";
 import { useEpisodesStore } from "../store/useEpisodesStore";
+import { useSettingsStore } from "../store/useSettingsStore";
 import { usePlayer } from "../context/PlayerContext";
 import { getEffectiveStatus } from "../lib/episodes";
 import { searchPodcastEpisodes } from "../lib/itunesApi";
+import { buildLibraryMarkdown, downloadMarkdownFile } from "../lib/export";
 import { formatTime } from "../lib/format";
 import type { Episode } from "../data/types";
 import { SearchBar } from "../components/SearchBar";
@@ -64,7 +66,13 @@ export function Library() {
   const storeNotes = useNotesStore((s) => s.notes);
   const episodes = useEpisodesStore((s) => s.episodes);
   const addEpisode = useEpisodesStore((s) => s.addEpisode);
+  const exportFormat = useSettingsStore((s) => s.exportFormat);
   const { getProgressFor } = usePlayer();
+
+  const handleExportAll = () => {
+    const markdown = buildLibraryMarkdown(episodes, storeNotes, exportFormat);
+    downloadMarkdownFile(`podbrain-export-${new Date().toISOString().slice(0, 10)}.md`, markdown);
+  };
 
   const [discoverQuery, setDiscoverQuery] = useState("");
   const [discoverResults, setDiscoverResults] = useState<Episode[]>([]);
@@ -127,7 +135,13 @@ export function Library() {
     <div className="pb-40 md:pb-16">
       <div className="flex items-center justify-between px-5 pb-4 pt-[calc(env(safe-area-inset-top)+1rem)] md:px-0 md:pt-0">
         <h1 className="text-[28px] font-bold text-text-primary">Library</h1>
-        <button type="button" className="text-sm font-medium text-accent">
+        <button
+          type="button"
+          onClick={handleExportAll}
+          disabled={storeNotes.length === 0}
+          title={storeNotes.length === 0 ? "No notes yet to export" : `Export all notes as Markdown (${exportFormat} format)`}
+          className="text-sm font-medium text-accent disabled:cursor-not-allowed disabled:text-text-tertiary"
+        >
           Export All ↗
         </button>
       </div>
