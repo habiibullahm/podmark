@@ -44,7 +44,7 @@ export function Dashboard() {
           actionLabel="See all"
           onAction={() => navigate("/library")}
         />
-        <div className="flex flex-col gap-3 px-5 md:px-0 lg:grid lg:grid-cols-2 xl:grid-cols-3">
+        <div className="flex flex-col gap-3 px-5 md:px-0">
           {recentTakeaways.map((note) => (
             <TakeawayCard key={note.id} note={note} />
           ))}
@@ -54,7 +54,7 @@ export function Dashboard() {
       {continuing.length > 0 && (
         <div className="mt-6">
           <SectionHeader title="Continue Learning" />
-          <div className="space-y-1 md:px-0 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
+          <div className="space-y-1 md:px-0">
             {continuing.map((ep) => (
               <EpisodeCard key={ep.id} episode={ep} variant="row-compact" />
             ))}
