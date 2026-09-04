@@ -7,6 +7,7 @@ import { filterNotesByEpisode } from "../lib/episodes";
 import { TagChip } from "../components/TagChip";
 import { EpisodeArtwork } from "../components/EpisodeArtwork";
 import { AISummaryCard } from "../components/AISummaryCard";
+import { MarkdownNoteEditor } from "../components/MarkdownNoteEditor";
 import { TimestampNoteBlock } from "../components/TimestampNoteBlock";
 import { HighlightBlock } from "../components/HighlightBlock";
 import { formatTime } from "../lib/format";
@@ -224,16 +225,11 @@ export function EpisodeDetail() {
         </div>
       )}
 
-      <div className="mx-5 mt-4">
-        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
-          Notes
-        </p>
-        <textarea
+      <div className="mx-5 mt-4 md:mx-0">
+        <MarkdownNoteEditor
           value={freeformNotes}
-          onChange={(e) => setFreeformNotes(e.target.value)}
-          rows={5}
+          onChange={setFreeformNotes}
           placeholder="Write freeform Markdown notes here — bullets, headers, etc."
-          className="w-full resize-none rounded-xl border border-border bg-bg-surface p-3 text-[14px] leading-relaxed text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none"
         />
       </div>
 
