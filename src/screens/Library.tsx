@@ -23,8 +23,8 @@ type TabKey = "episodes" | "takeaways" | "folders" | "discover";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "episodes", label: "Episodes" },
-  { key: "takeaways", label: "Key Takeaways" },
-  { key: "folders", label: "Custom Folders" },
+  { key: "takeaways", label: "Takeaways" },
+  { key: "folders", label: "Folders" },
   { key: "discover", label: "Discover" },
 ];
 

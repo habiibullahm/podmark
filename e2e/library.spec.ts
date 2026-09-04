@@ -18,16 +18,16 @@ test.describe("Library", () => {
     await expect(page.getByText("✓ Completed").first()).toBeVisible();
   });
 
-  test("switches to Key Takeaways and shows saved notes", async ({ page }) => {
-    await page.getByRole("button", { name: "Key Takeaways" }).click();
+  test("switches to Takeaways and shows saved notes", async ({ page }) => {
+    await page.getByRole("button", { name: "Takeaways" }).click();
 
     await expect(
       page.getByText("Three-tier note system: capture -> distill -> express."),
     ).toBeVisible();
   });
 
-  test("switches to Custom Folders", async ({ page }) => {
-    await page.getByRole("button", { name: "Custom Folders" }).click();
+  test("switches to Folders", async ({ page }) => {
+    await page.getByRole("button", { name: "Folders", exact: true }).click();
 
     await expect(page.getByText("Q3 Learning Sprint")).toBeVisible();
     await expect(page.getByText("Investing Basics")).toBeVisible();
