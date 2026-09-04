@@ -219,9 +219,12 @@ export function EpisodeDetail() {
           type="button"
           onClick={handleSummarize}
           disabled={generating}
-          className="flex shrink-0 items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-3.5 py-2 text-xs font-semibold text-accent disabled:opacity-60"
+          className={`flex shrink-0 items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-3.5 py-2 text-xs font-semibold text-accent transition-opacity disabled:opacity-70 ${
+            generating ? "animate-pulse" : ""
+          }`}
         >
-          {generating ? "✨ Summarizing…" : "✨ AI Summarize Episode"}
+          <span className={generating ? "animate-pulse" : ""}>✨</span>
+          <span>{generating ? "Summarizing…" : "AI Summarize Episode"}</span>
         </button>
       </div>
 

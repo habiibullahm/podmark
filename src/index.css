@@ -32,6 +32,29 @@
   --color-border: var(--palette-graphite-600);
 
   --font-sans: "Inter", "SF Pro Display", system-ui, -apple-system, sans-serif;
+
+  --animate-fade-slide-up: fade-slide-up 0.35s ease-out both;
+  --animate-fade-in: fade-in 0.3s ease-out both;
+}
+
+@keyframes fade-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 html,
