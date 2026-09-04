@@ -37,7 +37,7 @@ test.describe("Discover (real podcast search)", () => {
     await page.getByRole("button", { name: "+ Add" }).click();
     await expect(page.getByRole("button", { name: "✓ Added" })).toBeVisible();
 
-    const stored = await page.evaluate(() => localStorage.getItem("podbrain-episodes"));
+    const stored = await page.evaluate(() => localStorage.getItem("podmark-episodes"));
     expect(stored).toContain("itunes-999888777");
     expect(stored).toContain("https://example.com/audio.mp3");
   });

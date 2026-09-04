@@ -28,6 +28,6 @@ export const useSettingsStore = create<SettingsState>()(
       toggleNotifications: () => set((state) => ({ notificationsEnabled: !state.notificationsEnabled })),
       setExportFormat: (format) => set({ exportFormat: format }),
     }),
-    { name: "podbrain-settings" },
+    { name: "podmark-settings" },
   ),
 );

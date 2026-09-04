@@ -53,6 +53,6 @@ export const useNotesStore = create<NotesState>()(
           },
         })),
     }),
-    { name: "podbrain-notes" },
+    { name: "podmark-notes" },
   ),
 );
