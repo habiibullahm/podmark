@@ -278,8 +278,16 @@ export function EpisodeDetail() {
       )}
 
       {aiSummaryError && !aiSummary && (
-        <div className="mx-5 mt-4 rounded-xl border border-border bg-bg-surface p-3 md:mx-0">
+        <div className="mx-5 mt-4 flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-surface p-3 md:mx-0">
           <p className="text-[13px] text-text-secondary">✨ {aiSummaryError}</p>
+          <button
+            type="button"
+            onClick={handleSummarize}
+            disabled={generating}
+            className="shrink-0 rounded-lg bg-bg-surface-alt px-3 py-1.5 text-xs font-medium text-text-primary hover:text-accent disabled:opacity-50"
+          >
+            {generating ? "Retrying…" : "Try again"}
+          </button>
         </div>
       )}
 

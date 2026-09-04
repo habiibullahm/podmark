@@ -8,6 +8,8 @@ const FOLDER_COLORS = ["#6366F1", "#EC4899", "#22C55E", "#F59E0B", "#06B6D4"];
 interface FoldersState {
   folders: Folder[];
   addFolder: (name: string) => void;
+  renameFolder: (folderId: string, name: string) => void;
+  deleteFolder: (folderId: string) => void;
   addEpisodeToFolder: (folderId: string, episodeId: string) => void;
   removeEpisodeFromFolder: (folderId: string, episodeId: string) => void;
 }
@@ -32,6 +34,12 @@ export const useFoldersStore = create<FoldersState>()(
             },
           ],
         })),
+      renameFolder: (folderId, name) =>
+        set((state) => ({
+          folders: state.folders.map((f) => (f.id === folderId ? { ...f, name } : f)),
+        })),
+      deleteFolder: (folderId) =>
+        set((state) => ({ folders: state.folders.filter((f) => f.id !== folderId) })),
       addEpisodeToFolder: (folderId, episodeId) =>
         set((state) => ({
           folders: state.folders.map((f) =>

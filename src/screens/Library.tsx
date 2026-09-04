@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNotesStore } from "../store/useNotesStore";
 import { useEpisodesStore } from "../store/useEpisodesStore";
@@ -82,11 +82,18 @@ export function Library() {
   const exportFormat = useSettingsStore((s) => s.exportFormat);
   const folders = useFoldersStore((s) => s.folders);
   const addFolder = useFoldersStore((s) => s.addFolder);
+  const renameFolder = useFoldersStore((s) => s.renameFolder);
+  const deleteFolder = useFoldersStore((s) => s.deleteFolder);
   const { getProgressFor } = usePlayer();
 
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
+  const [folderActionsOpen, setFolderActionsOpen] = useState(false);
+  const [renamingFolder, setRenamingFolder] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const folderActionsRef = useRef<HTMLDivElement>(null);
   const selectedFolder = folders.find((f) => f.id === selectedFolderId) ?? null;
   const folderEpisodes = selectedFolder
     ? episodes.filter((e) => selectedFolder.episodeIds.includes(e.id))
@@ -99,6 +106,37 @@ export function Library() {
     setNewFolderName("");
     setNewFolderOpen(false);
   };
+
+  const closeFolderView = () => {
+    setSelectedFolderId(null);
+    setFolderActionsOpen(false);
+    setRenamingFolder(false);
+    setConfirmingDelete(false);
+  };
+
+  const handleRenameFolder = () => {
+    const name = renameValue.trim();
+    if (!name || !selectedFolder) return;
+    renameFolder(selectedFolder.id, name);
+    setRenamingFolder(false);
+  };
+
+  const handleDeleteFolder = () => {
+    if (!selectedFolder) return;
+    deleteFolder(selectedFolder.id);
+    closeFolderView();
+  };
+
+  useEffect(() => {
+    if (!folderActionsOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (folderActionsRef.current && !folderActionsRef.current.contains(e.target as Node)) {
+        setFolderActionsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [folderActionsOpen]);
 
   const handleExportAll = () => {
     const markdown = buildLibraryMarkdown(episodes, storeNotes, exportFormat);
@@ -188,7 +226,7 @@ export function Library() {
           active={tab}
           onChange={(t) => {
             setTab(t);
-            setSelectedFolderId(null);
+            closeFolderView();
             setNewFolderOpen(false);
           }}
         />
@@ -204,14 +242,104 @@ export function Library() {
 
         {tab === "folders" && selectedFolder && (
           <>
-            <button
-              type="button"
-              onClick={() => setSelectedFolderId(null)}
-              className="flex items-center gap-1.5 text-sm font-medium text-text-secondary hover:text-text-primary"
-            >
-              ← All Folders
-            </button>
-            <p className="text-[17px] font-semibold text-text-primary">{selectedFolder.name}</p>
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={closeFolderView}
+                className="flex items-center gap-1.5 text-sm font-medium text-text-secondary hover:text-text-primary"
+              >
+                ← All Folders
+              </button>
+              <div className="relative" ref={folderActionsRef}>
+                <button
+                  type="button"
+                  onClick={() => setFolderActionsOpen((v) => !v)}
+                  className="rounded-lg px-2 text-lg text-text-secondary hover:text-text-primary"
+                >
+                  ⋯
+                </button>
+                {folderActionsOpen && (
+                  <div className="absolute right-0 top-full z-20 mt-2 w-40 rounded-xl border border-border bg-bg-surface p-1.5 shadow-lg">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRenameValue(selectedFolder.name);
+                        setRenamingFolder(true);
+                        setFolderActionsOpen(false);
+                      }}
+                      className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-sm text-text-primary hover:bg-bg-surface-alt"
+                    >
+                      Rename
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfirmingDelete(true);
+                        setFolderActionsOpen(false);
+                      }}
+                      className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-sm text-red-400 hover:bg-bg-surface-alt"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {renamingFolder ? (
+              <div className="flex items-center gap-2 rounded-2xl border border-accent/40 bg-bg-surface p-3">
+                <input
+                  autoFocus
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleRenameFolder()}
+                  placeholder="Folder name..."
+                  className="min-w-0 flex-1 bg-transparent text-[14px] text-text-primary placeholder:text-text-tertiary focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setRenamingFolder(false)}
+                  className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-text-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRenameFolder}
+                  disabled={!renameValue.trim()}
+                  className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                >
+                  Save
+                </button>
+              </div>
+            ) : (
+              <p className="text-[17px] font-semibold text-text-primary">{selectedFolder.name}</p>
+            )}
+
+            {confirmingDelete && (
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-red-500/40 bg-red-500/10 p-3">
+                <p className="text-[13px] text-text-primary">
+                  Delete "{selectedFolder.name}"? Episodes stay in your library.
+                </p>
+                <div className="flex shrink-0 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingDelete(false)}
+                    className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-text-secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteFolder}
+                    className="rounded-lg bg-red-500 px-3 py-1.5 text-xs font-semibold text-white"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            )}
+
             {folderEpisodes.length > 0 ? (
               folderEpisodes.map((ep) => <EpisodeCard key={ep.id} episode={ep} />)
             ) : (
@@ -316,16 +444,36 @@ export function Library() {
             <p className="mt-3 text-sm text-text-secondary">{discoverError}</p>
           )}
 
-          <div className="mt-3 space-y-2.5">
-            {discoverResults.map((ep) => (
-              <DiscoverResultCard
-                key={ep.id}
-                episode={ep}
-                added={episodes.some((e) => e.id === ep.id)}
-                onAdd={() => addEpisode(ep)}
-              />
-            ))}
-          </div>
+          {discoverLoading && (
+            <div className="mt-3 space-y-2.5">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="flex animate-pulse items-center gap-3 rounded-2xl border border-border bg-bg-surface p-3"
+                >
+                  <div className="h-12 w-12 shrink-0 rounded-xl bg-bg-surface-alt" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="h-3.5 w-3/4 rounded bg-bg-surface-alt" />
+                    <div className="h-3 w-1/2 rounded bg-bg-surface-alt" />
+                  </div>
+                  <div className="h-7 w-16 shrink-0 rounded-lg bg-bg-surface-alt" />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!discoverLoading && (
+            <div className="mt-3 space-y-2.5">
+              {discoverResults.map((ep) => (
+                <DiscoverResultCard
+                  key={ep.id}
+                  episode={ep}
+                  added={episodes.some((e) => e.id === ep.id)}
+                  onAdd={() => addEpisode(ep)}
+                />
+              ))}
+            </div>
+          )}
 
           {discoverSearched && !discoverLoading && discoverResults.length === 0 && !discoverError && (
             <EmptyState icon="🔍" text="No episodes found for that search — try a different term." />
