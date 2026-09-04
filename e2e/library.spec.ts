@@ -5,15 +5,15 @@ test.describe("Library", () => {
     await page.goto("/#/library");
   });
 
-  test("renders with the search bar and defaults to In Progress", async ({ page }) => {
+  test("renders with the search bar and defaults to the unified Episodes tab", async ({ page }) => {
     await expect(page.getByRole("heading", { name: "Library" })).toBeVisible();
     await expect(page.getByPlaceholder("Search notes, episodes, tags...")).toBeVisible();
     await expect(page.getByText("Building a Second Brain: The Case for Structured Notes")).toBeVisible();
   });
 
-  test("switches to Finished and shows completed episodes", async ({ page }) => {
-    await page.getByRole("button", { name: "Finished", exact: true }).click();
-
+  test("Episodes tab shows every status — in progress, not started, and finished", async ({ page }) => {
+    await expect(page.getByText("Building a Second Brain: The Case for Structured Notes")).toBeVisible();
+    await expect(page.getByText("Reading Financial Statements Like an Investor")).toBeVisible();
     await expect(page.getByText("The Psychology of Compounding Habits")).toBeVisible();
     await expect(page.getByText("✓ Completed").first()).toBeVisible();
   });
@@ -34,12 +34,10 @@ test.describe("Library", () => {
   });
 
   test("filters the episode list by tag", async ({ page }) => {
-    await page.getByRole("button", { name: "#finance" }).click();
+    await page.getByRole("button", { name: "#finance", exact: true }).click();
 
-    await expect(page.getByText("Nothing in progress")).toBeVisible();
-
-    await page.getByRole("button", { name: "Finished", exact: true }).click();
-    await expect(page.getByText("No finished episodes yet.")).toBeVisible();
+    await expect(page.getByText("Reading Financial Statements Like an Investor")).toBeVisible();
+    await expect(page.getByText("Building a Second Brain: The Case for Structured Notes")).not.toBeVisible();
   });
 
   test("search filters the episode list by title", async ({ page }) => {

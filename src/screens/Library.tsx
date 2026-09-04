@@ -19,15 +19,19 @@ import { FolderCard } from "../components/FolderCard";
 import { EmptyState } from "../components/EmptyState";
 import { EpisodeArtwork } from "../components/EpisodeArtwork";
 
-type TabKey = "in-progress" | "finished" | "takeaways" | "folders" | "discover";
+type TabKey = "episodes" | "takeaways" | "folders" | "discover";
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: "in-progress", label: "In Progress" },
-  { key: "finished", label: "Finished" },
+  { key: "episodes", label: "Episodes" },
   { key: "takeaways", label: "Key Takeaways" },
   { key: "folders", label: "Custom Folders" },
   { key: "discover", label: "Discover" },
 ];
+
+// In-progress episodes surface first (most actionable), then not-started,
+// then finished ones sink to the bottom — otherwise a unified list would
+// bury what the user is actually likely to want next under old completions.
+const STATUS_RANK: Record<string, number> = { "in-progress": 0, "not-started": 1, finished: 2 };
 
 function DiscoverResultCard({ episode, onAdd, added }: { episode: Episode; onAdd: () => void; added: boolean }) {
   const navigate = useNavigate();
@@ -69,7 +73,7 @@ function DiscoverResultCard({ episode, onAdd, added }: { episode: Episode; onAdd
 }
 
 export function Library() {
-  const [tab, setTab] = useState<TabKey>("in-progress");
+  const [tab, setTab] = useState<TabKey>("episodes");
   const [search, setSearch] = useState("");
   const [activeTags, setActiveTags] = useState<string[]>([]);
   const storeNotes = useNotesStore((s) => s.notes);
@@ -143,16 +147,13 @@ export function Library() {
   // on that cadence (not just on user-driven re-renders like a search
   // keystroke). The episode list is small, so that's cheap here, but don't
   // assume this only runs rarely.
-  const inProgress = episodes.filter(
-    (e) =>
-      getEffectiveStatus(e, getProgressFor(e.id)) === "in-progress" &&
-      matchesFilters(e.tags, e.title),
-  );
-  const finished = episodes.filter(
-    (e) =>
-      getEffectiveStatus(e, getProgressFor(e.id)) === "finished" &&
-      matchesFilters(e.tags, e.title),
-  );
+  const visibleEpisodes = episodes
+    .filter((e) => matchesFilters(e.tags, e.title))
+    .sort(
+      (a, b) =>
+        STATUS_RANK[getEffectiveStatus(a, getProgressFor(a.id))] -
+        STATUS_RANK[getEffectiveStatus(b, getProgressFor(b.id))],
+    );
   const takeaways = useMemo(
     () => [...storeNotes].reverse().filter((n) => matchesFilters(n.tags, n.text)),
     [storeNotes, search, activeTags],
@@ -194,18 +195,11 @@ export function Library() {
       </div>
 
       <div className="mt-4 space-y-2.5 px-5 md:px-0">
-        {tab === "in-progress" &&
-          (inProgress.length > 0 ? (
-            inProgress.map((ep) => <EpisodeCard key={ep.id} episode={ep} />)
+        {tab === "episodes" &&
+          (visibleEpisodes.length > 0 ? (
+            visibleEpisodes.map((ep) => <EpisodeCard key={ep.id} episode={ep} />)
           ) : (
-            <EmptyState icon="🎧" text="Nothing in progress — start an episode from the Dashboard." />
-          ))}
-
-        {tab === "finished" &&
-          (finished.length > 0 ? (
-            finished.map((ep) => <EpisodeCard key={ep.id} episode={ep} />)
-          ) : (
-            <EmptyState icon="✅" text="No finished episodes yet." />
+            <EmptyState icon="🎧" text="No episodes match your search — try a different term or clear the tag filters." />
           ))}
 
         {tab === "folders" && selectedFolder && (
