@@ -12,6 +12,7 @@ export interface Episode {
   tags: string[];
   publishedAt: string;
   audioUrl?: string; // real audio file URL — when present, PlayerContext uses a real <audio> element instead of the simulated timer
+  description?: string; // show notes / episode description, used as grounding content for AI summarization
 }
 
 export type NoteBlockType = "timestamp-note" | "highlight";

@@ -11,6 +11,8 @@ export const episodes: Episode[] = [
     status: "in-progress",
     tags: ["productivity", "mindset"],
     publishedAt: "2026-08-28",
+    description:
+      "We sit down with a working note-taker to dig into why most people's notes never get reused. The core argument: a note-taking system only pays off if it separates capture from distillation from expression — most people stop at capture and wonder why their notes feel useless a month later. Covers a practical three-tier workflow, how to tag for future-you instead of present-you, and why linking notes together matters more than which app you use.",
   },
   {
     id: "ep-2",
@@ -22,6 +24,8 @@ export const episodes: Episode[] = [
     status: "in-progress",
     tags: ["ai", "coding"],
     publishedAt: "2026-08-25",
+    description:
+      "A no-jargon walkthrough of the transformer architecture behind modern language models. Starts from the core idea — attention as a learned weighting over every other token in a sequence — then builds up through multi-head attention, positional encoding, and why this architecture scaled so much better than RNNs. Ends with a segment on what actually happens during training versus inference, aimed at engineers who use these models but have never read the original paper.",
   },
   {
     id: "ep-3",
@@ -33,6 +37,8 @@ export const episodes: Episode[] = [
     status: "finished",
     tags: ["mindset", "productivity"],
     publishedAt: "2026-08-20",
+    description:
+      "Why tiny daily habits compound into identity change, and why most habit advice fails because it targets outcomes instead of identity. The host makes the case that habits stick when each repetition is treated as a vote for the kind of person you want to become, not a means to a numeric goal. Includes a breakdown of habit stacking, the two-minute rule for starting, and a candid discussion of what happens when a streak breaks.",
   },
   {
     id: "ep-4",
@@ -44,6 +50,8 @@ export const episodes: Episode[] = [
     status: "not-started",
     tags: ["finance", "business"],
     publishedAt: "2026-08-18",
+    description:
+      "A practical primer on reading the three core financial statements — income statement, balance sheet, and cash flow statement — the way an investor does rather than the way an accountant does. Focuses on the handful of ratios and red flags that actually predict trouble: shrinking margins, growing receivables relative to sales, and free cash flow diverging from reported earnings. Uses a real (anonymized) 10-K as a running example throughout.",
   },
   {
     id: "ep-5",
@@ -55,6 +63,8 @@ export const episodes: Episode[] = [
     status: "finished",
     tags: ["coding", "ai"],
     publishedAt: "2026-08-10",
+    description:
+      "A field guide to API design decisions that age well versus ones that quietly rot a codebase over years. The central rule: version at the boundary, not internally — internal churn shouldn't force a breaking change on every consumer. Covers pagination pitfalls, why nullable fields are a one-way door, deprecation strategies that don't burn trust with API consumers, and a case study of an API that had to support five breaking-change-free years.",
   },
 ];
 

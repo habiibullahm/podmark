@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.*
 
 # Playwright
 /test-results/
@@ -29,3 +31,4 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+.env*
