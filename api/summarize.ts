@@ -34,9 +34,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const client = new Anthropic();
-
   try {
+    const client = new Anthropic();
     const response = await client.messages.create({
       model: "claude-opus-5",
       max_tokens: 1024,
@@ -72,6 +71,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.status(503).json({ error: "AI summarization isn't configured correctly — invalid API key." });
     } else if (err instanceof Anthropic.RateLimitError) {
       res.status(429).json({ error: "AI summarization is rate-limited right now — try again in a moment." });
+    } else if (err instanceof Anthropic.BadRequestError && /credit balance/i.test(err.message)) {
+      res
+        .status(402)
+        .json({ error: "The Anthropic account is out of API credits — add credits at console.anthropic.com/settings/billing." });
     } else {
       res.status(500).json({ error: "AI summarization failed — try again later." });
     }

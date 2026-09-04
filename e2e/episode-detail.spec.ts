@@ -75,6 +75,22 @@ test.describe("Episode Detail", () => {
     await expect(page.getByText("AI summarization isn't configured yet")).toBeVisible({ timeout: 3000 });
   });
 
+  test("AI Summarize Episode shows a clear message when the account is out of credits", async ({ page }) => {
+    await page.route("/api/summarize", (route) =>
+      route.fulfill({
+        status: 402,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: "The Anthropic account is out of API credits — add credits at console.anthropic.com/settings/billing.",
+        }),
+      }),
+    );
+
+    await page.getByRole("button", { name: "AI Summarize Episode" }).click();
+
+    await expect(page.getByText("out of API credits")).toBeVisible({ timeout: 3000 });
+  });
+
   test("notes preview renders Markdown and round-trips back to edit", async ({ page }) => {
     const notes = page.getByPlaceholder(/Write freeform Markdown notes/);
     await notes.fill("# Heading\n\n- point one\n- point two\n\n**bold text**");
