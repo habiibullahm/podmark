@@ -7,6 +7,7 @@ interface NotesState {
   notes: NoteBlock[];
   aiSummaries: Record<string, string[]>; // episodeId -> bullet points
   aiSummaryErrors: Record<string, string>; // episodeId -> last error message
+  freeformNotes: Record<string, string>; // episodeId -> freeform Markdown notes
   addNote: (
     type: NoteBlockType,
     episodeId: string,
@@ -15,6 +16,7 @@ interface NotesState {
     tags?: string[],
   ) => void;
   generateSummary: (episode: Episode) => Promise<void>;
+  setFreeformNotes: (episodeId: string, text: string) => void;
 }
 
 function generateNoteId(): string {
@@ -27,6 +29,7 @@ export const useNotesStore = create<NotesState>()(
       notes: initialNoteBlocks,
       aiSummaries: {},
       aiSummaryErrors: {},
+      freeformNotes: {},
       addNote: (type, episodeId, timestampSec, text, tags = []) =>
         set((state) => ({
           notes: [
@@ -73,6 +76,8 @@ export const useNotesStore = create<NotesState>()(
           }));
         }
       },
+      setFreeformNotes: (episodeId, text) =>
+        set((state) => ({ freeformNotes: { ...state.freeformNotes, [episodeId]: text } })),
     }),
     { name: "podmark-notes" },
   ),

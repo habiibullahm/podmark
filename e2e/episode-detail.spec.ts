@@ -115,6 +115,26 @@ test.describe("Episode Detail", () => {
     await expect(page.getByText(/Nothing to preview yet/)).toBeVisible();
   });
 
+  test("freeform notes persist across reload and don't leak between episodes", async ({ page }) => {
+    const notes = page.getByPlaceholder(/Write freeform Markdown notes/);
+    await notes.fill("- A note that should survive a reload");
+
+    await page.reload();
+    await expect(page.getByPlaceholder(/Write freeform Markdown notes/)).toHaveValue(
+      "- A note that should survive a reload",
+    );
+
+    await page.goto("/#/episode/ep-2");
+    await expect(page.getByPlaceholder(/Write freeform Markdown notes/)).not.toHaveValue(
+      "- A note that should survive a reload",
+    );
+
+    await page.goto("/#/episode/ep-1");
+    await expect(page.getByPlaceholder(/Write freeform Markdown notes/)).toHaveValue(
+      "- A note that should survive a reload",
+    );
+  });
+
   test("play/pause toggles the persistent mini player", async ({ page }) => {
     await page.getByRole("button", { name: "Play" }).click();
 
