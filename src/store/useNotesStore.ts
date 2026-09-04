@@ -1,11 +1,12 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { noteBlocks as initialNoteBlocks } from "../data/mockData";
-import type { NoteBlock, NoteBlockType } from "../data/types";
+import type { Episode, NoteBlock, NoteBlockType } from "../data/types";
 
 interface NotesState {
   notes: NoteBlock[];
   aiSummaries: Record<string, string[]>; // episodeId -> bullet points
+  aiSummaryErrors: Record<string, string>; // episodeId -> last error message
   addNote: (
     type: NoteBlockType,
     episodeId: string,
@@ -13,7 +14,7 @@ interface NotesState {
     text: string,
     tags?: string[],
   ) => void;
-  generateSummary: (episodeId: string, episodeTitle: string) => void;
+  generateSummary: (episode: Episode) => Promise<void>;
 }
 
 function generateNoteId(): string {
@@ -25,6 +26,7 @@ export const useNotesStore = create<NotesState>()(
     (set) => ({
       notes: initialNoteBlocks,
       aiSummaries: {},
+      aiSummaryErrors: {},
       addNote: (type, episodeId, timestampSec, text, tags = []) =>
         set((state) => ({
           notes: [
@@ -40,18 +42,37 @@ export const useNotesStore = create<NotesState>()(
             },
           ],
         })),
-      generateSummary: (episodeId, episodeTitle) =>
-        set((state) => ({
-          aiSummaries: {
-            ...state.aiSummaries,
-            [episodeId]: [
-              `Core thesis of "${episodeTitle}" laid out in the first 10 minutes, with two supporting case studies.`,
-              "A practical framework is introduced around minute 15 — three repeatable steps listeners can apply immediately.",
-              "Host pushes back on a common misconception, reframing it with a clearer mental model.",
-              "Closing segment ties the topic back to a broader long-term habit or system worth adopting.",
-            ],
-          },
-        })),
+      generateSummary: async (episode) => {
+        set((state) => {
+          const aiSummaryErrors = { ...state.aiSummaryErrors };
+          delete aiSummaryErrors[episode.id];
+          return { aiSummaryErrors };
+        });
+
+        try {
+          const res = await fetch("/api/summarize", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: episode.title,
+              show: episode.show,
+              description: episode.description,
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || "AI summarization failed.");
+          }
+          set((state) => ({
+            aiSummaries: { ...state.aiSummaries, [episode.id]: data.bullets },
+          }));
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "AI summarization failed.";
+          set((state) => ({
+            aiSummaryErrors: { ...state.aiSummaryErrors, [episode.id]: message },
+          }));
+        }
+      },
     }),
     { name: "podmark-notes" },
   ),

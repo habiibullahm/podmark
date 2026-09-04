@@ -16,6 +16,7 @@ interface ItunesEpisodeResult {
   trackTimeMillis?: number;
   releaseDate?: string;
   genres?: { id: string; name: string }[];
+  description?: string;
 }
 
 interface ItunesSearchResponse {
@@ -39,6 +40,7 @@ function toEpisode(result: ItunesEpisodeResult): Episode | null {
     tags: (result.genres ?? []).slice(0, 2).map((g) => g.name.toLowerCase().replace(/\s+/g, "-")),
     publishedAt: result.releaseDate ? result.releaseDate.slice(0, 10) : "",
     audioUrl,
+    description: result.description,
   };
 }
 

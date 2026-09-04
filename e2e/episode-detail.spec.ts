@@ -43,6 +43,14 @@ test.describe("Episode Detail", () => {
   });
 
   test("AI Summarize Episode generates bullet points insertable into notes", async ({ page }) => {
+    await page.route("/api/summarize", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ bullets: ["Core thesis of the episode, mocked for this test.", "A second bullet."] }),
+      }),
+    );
+
     await page.getByRole("button", { name: "AI Summarize Episode" }).click();
 
     await expect(page.getByText("AI Summary")).toBeVisible({ timeout: 3000 });
@@ -51,6 +59,20 @@ test.describe("Episode Detail", () => {
 
     await insertButtons.first().click();
     await expect(page.getByPlaceholder(/Write freeform Markdown notes/)).toContainText("Core thesis");
+  });
+
+  test("AI Summarize Episode shows a graceful message when the API isn't configured", async ({ page }) => {
+    await page.route("/api/summarize", (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "AI summarization isn't configured yet — no API key set." }),
+      }),
+    );
+
+    await page.getByRole("button", { name: "AI Summarize Episode" }).click();
+
+    await expect(page.getByText("AI summarization isn't configured yet")).toBeVisible({ timeout: 3000 });
   });
 
   test("notes preview renders Markdown and round-trips back to edit", async ({ page }) => {

@@ -27,6 +27,7 @@ export function EpisodeDetail() {
   const addNote = useNotesStore((s) => s.addNote);
   const generateSummary = useNotesStore((s) => s.generateSummary);
   const aiSummary = useNotesStore((s) => (id ? s.aiSummaries[id] : undefined));
+  const aiSummaryError = useNotesStore((s) => (id ? s.aiSummaryErrors[id] : undefined));
   const folders = useFoldersStore((s) => s.folders);
   const addEpisodeToFolder = useFoldersStore((s) => s.addEpisodeToFolder);
   const removeEpisodeFromFolder = useFoldersStore((s) => s.removeEpisodeFromFolder);
@@ -109,12 +110,10 @@ export function EpisodeDetail() {
     setAddingHighlight(false);
   };
 
-  const handleSummarize = () => {
+  const handleSummarize = async () => {
     setGenerating(true);
-    window.setTimeout(() => {
-      generateSummary(episode.id, episode.title);
-      setGenerating(false);
-    }, 900);
+    await generateSummary(episode);
+    setGenerating(false);
   };
 
   return (
@@ -264,6 +263,12 @@ export function EpisodeDetail() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {aiSummaryError && !aiSummary && (
+        <div className="mx-5 mt-4 rounded-xl border border-border bg-bg-surface p-3 md:mx-0">
+          <p className="text-[13px] text-text-secondary">✨ {aiSummaryError}</p>
         </div>
       )}
 
