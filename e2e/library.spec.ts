@@ -55,6 +55,6 @@ test.describe("Library", () => {
       page.getByRole("button", { name: "Export All ↗" }).click(),
     ]);
 
-    expect(download.suggestedFilename()).toMatch(/^podbrain-export-\d{4}-\d{2}-\d{2}\.md$/);
+    expect(download.suggestedFilename()).toMatch(/^podmark-export-\d{4}-\d{2}-\d{2}\.md$/);
   });
 });

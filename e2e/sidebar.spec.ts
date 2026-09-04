@@ -7,17 +7,17 @@ test.use({ viewport: { width: 1280, height: 800 } });
 test.describe("Collapsible sidebar", () => {
   test("toggles collapsed state and persists across reload", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByText("PodBrain")).toBeVisible();
+    await expect(page.getByText("PodMark")).toBeVisible();
 
     await page.getByRole("button", { name: "Collapse sidebar" }).click();
-    await expect(page.getByText("PodBrain")).not.toBeVisible();
+    await expect(page.getByText("PodMark")).not.toBeVisible();
     await expect(page.getByRole("button", { name: "Expand sidebar" })).toBeVisible();
 
     await page.reload();
-    await expect(page.getByText("PodBrain")).not.toBeVisible();
+    await expect(page.getByText("PodMark")).not.toBeVisible();
 
     await page.getByRole("button", { name: "Expand sidebar" }).click();
-    await expect(page.getByText("PodBrain")).toBeVisible();
+    await expect(page.getByText("PodMark")).toBeVisible();
   });
 
   test("navigates between screens via the sidebar", async ({ page }) => {

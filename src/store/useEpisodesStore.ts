@@ -17,6 +17,6 @@ export const useEpisodesStore = create<EpisodesState>()(
         set((state) => ({ episodes: [episode, ...state.episodes] }));
       },
     }),
-    { name: "podbrain-episodes" },
+    { name: "podmark-episodes" },
   ),
 );

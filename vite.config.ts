@@ -11,8 +11,8 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'PodBrain',
-        short_name: 'PodBrain',
+        name: 'PodMark',
+        short_name: 'PodMark',
         description: 'Personal Podcast Tracker & Learning Journal',
         theme_color: '#121212',
         background_color: '#121212',

@@ -20,6 +20,6 @@ export const useUIStore = create<UIState>()(
       sidebarCollapsed: getDefaultCollapsed(),
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
     }),
-    { name: "podbrain-ui" },
+    { name: "podmark-ui" },
   ),
 );

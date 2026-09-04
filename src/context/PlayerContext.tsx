@@ -28,7 +28,7 @@ interface PlayerContextValue {
 }
 
 const SPEEDS = [1, 1.2, 1.5, 2];
-const PROGRESS_STORAGE_KEY = "podbrain-progress";
+const PROGRESS_STORAGE_KEY = "podmark-progress";
 const PERSIST_EVERY_N_TICKS = 5;
 
 function loadStoredProgress(): Record<string, number> {

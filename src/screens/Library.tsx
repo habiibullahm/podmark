@@ -71,7 +71,7 @@ export function Library() {
 
   const handleExportAll = () => {
     const markdown = buildLibraryMarkdown(episodes, storeNotes, exportFormat);
-    downloadMarkdownFile(`podbrain-export-${new Date().toISOString().slice(0, 10)}.md`, markdown);
+    downloadMarkdownFile(`podmark-export-${new Date().toISOString().slice(0, 10)}.md`, markdown);
   };
 
   const [discoverQuery, setDiscoverQuery] = useState("");
