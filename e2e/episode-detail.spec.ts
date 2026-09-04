@@ -81,14 +81,14 @@ test.describe("Episode Detail", () => {
         status: 402,
         contentType: "application/json",
         body: JSON.stringify({
-          error: "The Anthropic account is out of API credits — add credits at console.anthropic.com/settings/billing.",
+          error: "The Groq account is out of credits — check console.groq.com/settings/billing.",
         }),
       }),
     );
 
     await page.getByRole("button", { name: "AI Summarize Episode" }).click();
 
-    await expect(page.getByText("out of API credits")).toBeVisible({ timeout: 3000 });
+    await expect(page.getByText("out of credits")).toBeVisible({ timeout: 3000 });
   });
 
   test("notes preview renders Markdown and round-trips back to edit", async ({ page }) => {
