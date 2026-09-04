@@ -36,4 +36,15 @@ test.describe("Custom Folders", () => {
 
     await expect(page.getByText("Reading Financial Statements Like an Investor").first()).toBeVisible();
   });
+
+  test("the add-to-folder menu closes when clicking elsewhere on the page", async ({ page }) => {
+    await page.goto("/#/episode/ep-1");
+    await page.getByRole("button", { name: "⋯" }).click();
+
+    await expect(page.getByText("Add to folder")).toBeVisible();
+
+    await page.getByText("Notes", { exact: true }).click();
+
+    await expect(page.getByText("Add to folder")).not.toBeVisible();
+  });
 });

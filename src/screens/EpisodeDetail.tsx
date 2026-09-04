@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useEpisodesStore } from "../store/useEpisodesStore";
 import { useFoldersStore } from "../store/useFoldersStore";
@@ -38,6 +38,18 @@ export function EpisodeDetail() {
   const [draftTag, setDraftTag] = useState(episode?.tags[0] ?? "");
   const [generating, setGenerating] = useState(false);
   const [folderMenuOpen, setFolderMenuOpen] = useState(false);
+  const folderMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!folderMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (folderMenuRef.current && !folderMenuRef.current.contains(e.target as Node)) {
+        setFolderMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [folderMenuOpen]);
 
   // Reset per-episode draft/editor state whenever the route's :id changes —
   // EpisodeDetail is reused, not remounted, across /episode/:id navigations,
@@ -114,7 +126,7 @@ export function EpisodeDetail() {
         <p className="line-clamp-1 max-w-[240px] text-[13px] font-medium text-text-primary">
           {episode.title}
         </p>
-        <div className="relative">
+        <div className="relative" ref={folderMenuRef}>
           <button
             type="button"
             onClick={() => setFolderMenuOpen((v) => !v)}
