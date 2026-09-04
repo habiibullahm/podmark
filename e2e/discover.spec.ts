@@ -42,7 +42,7 @@ test.describe("Discover (real podcast search)", () => {
     expect(stored).toContain("https://example.com/audio.mp3");
   });
 
-  test("added episode appears in the In Progress/library elsewhere after adding", async ({ page }) => {
+  test("added episode's tag appears in the Library tag filter row", async ({ page }) => {
     await page.route("https://itunes.apple.com/search**", (route) =>
       route.fulfill({
         status: 200,
