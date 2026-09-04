@@ -11,7 +11,7 @@ export function FolderCard({
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-3 rounded-2xl border border-border bg-bg-surface p-3.5 text-left"
+      className="flex w-full items-center gap-3 rounded-2xl border border-border bg-bg-surface p-3.5 text-left"
     >
       <div
         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg"
@@ -19,8 +19,8 @@ export function FolderCard({
       >
         📁
       </div>
-      <div>
-        <p className="text-[14px] font-medium text-text-primary">{folder.name}</p>
+      <div className="min-w-0">
+        <p className="truncate text-[14px] font-medium text-text-primary">{folder.name}</p>
         <p className="text-xs text-text-secondary">{folder.episodeIds.length} items</p>
       </div>
     </button>

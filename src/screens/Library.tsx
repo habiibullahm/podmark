@@ -231,9 +231,11 @@ export function Library() {
 
         {tab === "folders" && !selectedFolder && (
           <>
-            {folders.map((f) => (
-              <FolderCard key={f.id} folder={f} onClick={() => setSelectedFolderId(f.id)} />
-            ))}
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+              {folders.map((f) => (
+                <FolderCard key={f.id} folder={f} onClick={() => setSelectedFolderId(f.id)} />
+              ))}
+            </div>
 
             {newFolderOpen ? (
               <div className="flex items-center gap-2 rounded-2xl border border-accent/40 bg-bg-surface p-3">
