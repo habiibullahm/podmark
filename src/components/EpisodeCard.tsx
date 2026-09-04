@@ -58,17 +58,17 @@ export function EpisodeCard({ episode, variant = "list" }: EpisodeCardProps) {
         </p>
         <p className="line-clamp-1 text-xs text-text-secondary">{episode.show}</p>
 
-        <div className="mt-1.5 flex items-center gap-2">
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
           {status === "finished" ? (
-            <span className="flex items-center gap-1 text-[11px] font-medium text-success">
+            <span className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-success">
               ✓ Completed
             </span>
           ) : (
-            <div className="h-1 w-20 overflow-hidden rounded-full bg-bg-surface-alt">
+            <div className="h-1 w-20 shrink-0 overflow-hidden rounded-full bg-bg-surface-alt">
               <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
             </div>
           )}
-          <div className="flex gap-1">
+          <div className="flex flex-wrap gap-1">
             {episode.tags.slice(0, 2).map((t) => (
               <TagChip key={t} label={t} />
             ))}
