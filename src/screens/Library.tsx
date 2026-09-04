@@ -158,7 +158,7 @@ export function Library() {
         <SegmentedTabSwitcher tabs={TABS} active={tab} onChange={setTab} />
       </div>
 
-      <div className="mt-4 space-y-2.5 px-5 md:px-0 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0 xl:grid-cols-3">
+      <div className="mt-4 space-y-2.5 px-5 md:px-0">
         {tab === "in-progress" &&
           (inProgress.length > 0 ? (
             inProgress.map((ep) => <EpisodeCard key={ep.id} episode={ep} />)
@@ -192,7 +192,7 @@ export function Library() {
       </div>
 
       {tab === "takeaways" && (
-        <div className="mt-1 grid grid-cols-1 gap-2.5 px-5 md:px-0 lg:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-1 space-y-2.5 px-5 md:px-0">
           {takeaways.length > 0 ? (
             takeaways.map((note) => <TakeawayCard key={note.id} note={note} />)
           ) : (
@@ -230,7 +230,7 @@ export function Library() {
             <p className="mt-3 text-sm text-text-secondary">{discoverError}</p>
           )}
 
-          <div className="mt-3 space-y-2.5 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0 xl:grid-cols-3">
+          <div className="mt-3 space-y-2.5">
             {discoverResults.map((ep) => (
               <DiscoverResultCard
                 key={ep.id}
