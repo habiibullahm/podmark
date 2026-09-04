@@ -9,7 +9,8 @@ import { FullScreenPlayerModal } from "./components/FullScreenPlayerModal";
 import { Dashboard } from "./screens/Dashboard";
 import { Library } from "./screens/Library";
 import { EpisodeDetail } from "./screens/EpisodeDetail";
-import { Stub } from "./screens/Stub";
+import { Insights } from "./screens/Insights";
+import { Profile } from "./screens/Profile";
 
 function App() {
   const collapsed = useUIStore((s) => s.sidebarCollapsed);
@@ -28,8 +29,8 @@ function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/library" element={<Library />} />
               <Route path="/episode/:id" element={<EpisodeDetail />} />
-              <Route path="/insights" element={<Stub title="Insights" />} />
-              <Route path="/profile" element={<Stub title="Profile" />} />
+              <Route path="/insights" element={<Insights />} />
+              <Route path="/profile" element={<Profile />} />
             </Routes>
           </div>
         </div>
