@@ -76,7 +76,9 @@ export function EpisodeCard({ episode, variant = "list" }: EpisodeCardProps) {
         </div>
       </div>
       {noteCount > 0 && (
-        <span className="shrink-0 text-xs text-text-tertiary">{noteCount} notes</span>
+        <span className="shrink-0 text-xs text-text-tertiary">
+          {noteCount} note{noteCount === 1 ? "" : "s"}
+        </span>
       )}
     </button>
   );

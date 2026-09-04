@@ -21,7 +21,9 @@ export function FolderCard({
       </div>
       <div className="min-w-0">
         <p className="truncate text-[14px] font-medium text-text-primary">{folder.name}</p>
-        <p className="text-xs text-text-secondary">{folder.episodeIds.length} items</p>
+        <p className="text-xs text-text-secondary">
+          {folder.episodeIds.length} item{folder.episodeIds.length === 1 ? "" : "s"}
+        </p>
       </div>
     </button>
   );
