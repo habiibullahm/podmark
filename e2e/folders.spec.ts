@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 test.describe("Custom Folders", () => {
   test("clicking a seeded folder shows its real episodes", async ({ page }) => {
     await page.goto("/#/library");
-    await page.getByRole("button", { name: "Custom Folders" }).click();
+    await page.getByRole("button", { name: "Folders", exact: true }).click();
 
     await page.getByText("Q3 Learning Sprint").click();
 
@@ -17,7 +17,7 @@ test.describe("Custom Folders", () => {
 
   test("creates a new folder and adds an episode to it via the episode detail menu", async ({ page }) => {
     await page.goto("/#/library");
-    await page.getByRole("button", { name: "Custom Folders" }).click();
+    await page.getByRole("button", { name: "Folders", exact: true }).click();
 
     await page.getByRole("button", { name: "+ New Folder" }).click();
     await page.getByPlaceholder("Folder name...").fill("Deep Focus");
@@ -31,7 +31,7 @@ test.describe("Custom Folders", () => {
     await page.getByText("Deep Focus").click();
 
     await page.goto("/#/library");
-    await page.getByRole("button", { name: "Custom Folders" }).click();
+    await page.getByRole("button", { name: "Folders", exact: true }).click();
     await page.getByText("Deep Focus").click();
 
     await expect(page.getByText("Reading Financial Statements Like an Investor").first()).toBeVisible();

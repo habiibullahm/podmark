@@ -23,8 +23,8 @@ type TabKey = "episodes" | "takeaways" | "folders" | "discover";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "episodes", label: "Episodes" },
-  { key: "takeaways", label: "Key Takeaways" },
-  { key: "folders", label: "Custom Folders" },
+  { key: "takeaways", label: "Takeaways" },
+  { key: "folders", label: "Folders" },
   { key: "discover", label: "Discover" },
 ];
 
@@ -39,13 +39,13 @@ function DiscoverResultCard({ episode, onAdd, added }: { episode: Episode; onAdd
   return (
     <div
       onClick={added ? () => navigate(`/episode/${episode.id}`) : undefined}
-      className={`flex items-center gap-3 rounded-2xl border border-border bg-bg-surface p-3 ${
+      className={`flex items-start gap-3 rounded-2xl border border-border bg-bg-surface p-3 pb-4 ${
         added ? "cursor-pointer hover:border-accent/60" : ""
       }`}
     >
       <EpisodeArtwork episode={episode} className="h-12 w-12 shrink-0 rounded-xl" />
       <div className="min-w-0 flex-1">
-        <p className="line-clamp-2 text-[14px] font-medium leading-snug text-text-primary">
+        <p className="line-clamp-2 text-[15px] font-medium leading-snug text-text-primary">
           {episode.title}
         </p>
         <p className="line-clamp-1 text-xs text-text-secondary">{episode.show}</p>
