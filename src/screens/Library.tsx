@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useNotesStore } from "../store/useNotesStore";
 import { useEpisodesStore } from "../store/useEpisodesStore";
 import { useSettingsStore } from "../store/useSettingsStore";
@@ -73,7 +73,11 @@ function DiscoverResultCard({ episode, onAdd, added }: { episode: Episode; onAdd
 }
 
 export function Library() {
-  const [tab, setTab] = useState<TabKey>("episodes");
+  const location = useLocation();
+  const requestedTab = (location.state as { tab?: TabKey } | null)?.tab;
+  const [tab, setTab] = useState<TabKey>(
+    requestedTab && TABS.some((t) => t.key === requestedTab) ? requestedTab : "episodes",
+  );
   const [search, setSearch] = useState("");
   const [activeTags, setActiveTags] = useState<string[]>([]);
   const storeNotes = useNotesStore((s) => s.notes);
