@@ -6,7 +6,7 @@ test.describe("Profile", () => {
   });
 
   test("shows the user summary and settings sections", async ({ page }) => {
-    await expect(page.getByText("12 day streak · 5 episodes")).toBeVisible();
+    await expect(page.getByText("0 days streak · 5 episodes")).toBeVisible();
     await expect(page.getByText("Daily goal")).toBeVisible();
     await expect(page.getByText("Notifications")).toBeVisible();
     await expect(page.getByText("Export", { exact: true })).toBeVisible();

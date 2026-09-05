@@ -1,6 +1,7 @@
 import { useEpisodesStore } from "../store/useEpisodesStore";
 import { useNotesStore } from "../store/useNotesStore";
 import { useSettingsStore } from "../store/useSettingsStore";
+import { useCurrentStreak } from "../store/useActivityStore";
 import { SectionHeader } from "../components/SectionHeader";
 
 const GOAL_STEP = 5;
@@ -8,6 +9,7 @@ const GOAL_STEP = 5;
 export function Profile() {
   const episodesCount = useEpisodesStore((s) => s.episodes.length);
   const notesCount = useNotesStore((s) => s.notes.length);
+  const streak = useCurrentStreak();
   const dailyGoalTarget = useSettingsStore((s) => s.dailyGoalTarget);
   const adjustDailyGoalTarget = useSettingsStore((s) => s.adjustDailyGoalTarget);
   const notificationsEnabled = useSettingsStore((s) => s.notificationsEnabled);
@@ -26,7 +28,7 @@ export function Profile() {
         <div>
           <p className="text-[17px] font-semibold text-text-primary">Alex</p>
           <p className="text-xs text-text-secondary">
-            🔥 12 day streak · {episodesCount} episodes · {notesCount} notes
+            🔥 {streak} day{streak === 1 ? "" : "s"} streak · {episodesCount} episodes · {notesCount} notes
           </p>
         </div>
       </div>

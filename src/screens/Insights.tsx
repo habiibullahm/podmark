@@ -4,6 +4,7 @@ import { dailyGoal } from "../data/mockData";
 import { useEpisodesStore } from "../store/useEpisodesStore";
 import { useNotesStore } from "../store/useNotesStore";
 import { usePlayer } from "../context/PlayerContext";
+import { useCurrentStreak } from "../store/useActivityStore";
 import { getEffectiveStatus } from "../lib/episodes";
 import { SectionHeader } from "../components/SectionHeader";
 import { TagChip } from "../components/TagChip";
@@ -20,6 +21,7 @@ export function Insights() {
   const episodes = useEpisodesStore((s) => s.episodes);
   const notes = useNotesStore((s) => s.notes);
   const { getProgressFor } = usePlayer();
+  const streak = useCurrentStreak();
 
   const finishedCount = useMemo(
     () => episodes.filter((e) => getEffectiveStatus(e, getProgressFor(e.id)) === "finished").length,
@@ -52,7 +54,7 @@ export function Insights() {
       <h1 className="mb-5 text-xl font-semibold text-text-primary">Insights</h1>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Current streak" value="12 days" icon="🔥" />
+        <StatCard label="Current streak" value={`${streak} day${streak === 1 ? "" : "s"}`} icon="🔥" />
         <StatCard label="Episodes finished" value={String(finishedCount)} icon="✅" />
         <StatCard label="Notes captured" value={String(notes.length)} icon="📝" />
         <StatCard label="Top tag" value={tagCounts[0] ? `#${tagCounts[0][0]}` : "—"} icon="🏷️" />

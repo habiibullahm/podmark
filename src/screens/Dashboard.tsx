@@ -3,6 +3,7 @@ import { dailyGoal } from "../data/mockData";
 import { useNotesStore } from "../store/useNotesStore";
 import { useEpisodesStore } from "../store/useEpisodesStore";
 import { useSettingsStore } from "../store/useSettingsStore";
+import { useCurrentStreak } from "../store/useActivityStore";
 import { usePlayer } from "../context/PlayerContext";
 import { getEffectiveStatus } from "../lib/episodes";
 import { AppHeader } from "../components/AppHeader";
@@ -28,10 +29,11 @@ export function Dashboard() {
   const recentTakeaways = [...notes].reverse().slice(0, 6);
   const dailyGoalTarget = useSettingsStore((s) => s.dailyGoalTarget);
   const goal = { ...dailyGoal, targetMinutes: dailyGoalTarget };
+  const streak = useCurrentStreak();
 
   return (
     <div className="pb-40 md:pb-16">
-      <AppHeader greeting="Good morning" streak={12} />
+      <AppHeader greeting="Good morning" streak={streak} />
 
       <div className="flex flex-col gap-3 md:px-0 lg:grid lg:grid-cols-[1.6fr_1fr] lg:gap-4">
         <CurrentlyLearningWidget episode={currentlyLearning} hasStarted={currentlyLearningStatus !== "not-started"} />

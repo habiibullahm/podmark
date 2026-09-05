@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useEpisodesStore } from "../store/useEpisodesStore";
+import { useActivityStore } from "../store/useActivityStore";
 import type { Episode } from "../data/types";
 
 interface PlayerContextValue {
@@ -182,6 +183,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (!episode) return;
     const shouldPersistNow = !isPlaying || tickCount.current % PERSIST_EVERY_N_TICKS === 0;
     persistProgress(episode.id, positionSec, shouldPersistNow);
+    if (isPlaying) {
+      useActivityStore.getState().logToday();
+    }
     if (!isRealAudio && positionSec >= episode.durationSec) {
       setIsPlaying(false);
     }
