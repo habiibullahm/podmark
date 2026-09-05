@@ -45,7 +45,7 @@ export function Dashboard() {
         <SectionHeader
           title="Recent Takeaways"
           actionLabel="See all"
-          onAction={() => navigate("/library")}
+          onAction={() => navigate("/library", { state: { tab: "takeaways" } })}
         />
         <div className="flex flex-col gap-3 px-5 md:px-0">
           {recentTakeaways.map((note) => (
