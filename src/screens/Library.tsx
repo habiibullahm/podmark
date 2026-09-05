@@ -240,12 +240,26 @@ export function Library() {
         </button>
       </div>
 
-      {/* The library-wide search and tag filters apply to your own episodes and
-          notes, so on Discover (which searches elsewhere) they'd be dead
-          controls sitting above a second search field. */}
+      {/* Tabs lead, because the search and tag filters below them are scoped to
+          whichever tab is selected. */}
+      <div>
+        <SegmentedTabSwitcher
+          tabs={TABS}
+          active={tab}
+          onChange={(t) => {
+            setTab(t);
+            closeFolderView();
+            setNewFolderOpen(false);
+          }}
+        />
+      </div>
+
+      {/* Those filters apply to your own episodes and notes, so on Discover
+          (which searches elsewhere) they'd be dead controls sitting above a
+          second search field. */}
       {tab !== "discover" && (
         <>
-          <div className="px-5 md:px-0">
+          <div className="mt-3 px-5 md:px-0">
             <SearchBar value={search} onChange={setSearch} />
           </div>
 
@@ -261,18 +275,6 @@ export function Library() {
           </div>
         </>
       )}
-
-      <div className="mt-3">
-        <SegmentedTabSwitcher
-          tabs={TABS}
-          active={tab}
-          onChange={(t) => {
-            setTab(t);
-            closeFolderView();
-            setNewFolderOpen(false);
-          }}
-        />
-      </div>
 
       <div className="mt-4 space-y-2.5 px-5 md:px-0">
         {tab === "episodes" &&
