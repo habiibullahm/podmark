@@ -165,6 +165,9 @@ export function Library() {
     setYoutubeLoading(true);
     setYoutubeError(null);
     setYoutubeAdded(null);
+    // The two actions share one field, so each clears the other's feedback —
+    // otherwise a failed search stays on screen under a successful add.
+    setDiscoverError(null);
     try {
       const episode = await fetchYouTubeEpisode(url);
       addEpisode(episode);
@@ -182,6 +185,8 @@ export function Library() {
     if (!term) return;
     setDiscoverLoading(true);
     setDiscoverError(null);
+    setYoutubeError(null);
+    setYoutubeAdded(null);
     try {
       const results = await searchPodcastEpisodes(term);
       setDiscoverResults(results);
@@ -250,6 +255,10 @@ export function Library() {
             setTab(t);
             closeFolderView();
             setNewFolderOpen(false);
+            // Transient feedback for the last add — it shouldn't be waiting
+            // here when the user comes back to this tab later.
+            setYoutubeAdded(null);
+            setYoutubeError(null);
           }}
         />
       </div>

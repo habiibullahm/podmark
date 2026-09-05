@@ -138,10 +138,15 @@ export function EpisodeDetail() {
   // confident-sounding summary of content nobody has read.
   const needsTranscript = !!episode.sourceUrl && !episode.description;
 
+  // Gate Save on what would actually be stored, not the raw draft — a paste of
+  // nothing but timestamps normalizes to empty, and an enabled button that
+  // silently does nothing is worse than a disabled one that says why.
+  const cleanedTranscript = normalizeTranscript(transcriptDraft);
+  const transcriptIsTimestampsOnly = transcriptDraft.trim() !== "" && cleanedTranscript === "";
+
   const handleSaveTranscript = () => {
-    const cleaned = normalizeTranscript(transcriptDraft);
-    if (!cleaned) return;
-    setEpisodeDescription(episode.id, cleaned);
+    if (!cleanedTranscript) return;
+    setEpisodeDescription(episode.id, cleanedTranscript);
     setTranscriptDraft("");
     setAddingTranscript(false);
   };
@@ -283,6 +288,11 @@ export function EpisodeDetail() {
                 rows={5}
                 className="mt-2 w-full resize-none rounded-lg border border-border bg-bg-surface-alt px-3 py-2 text-[13px] text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none"
               />
+              {transcriptIsTimestampsOnly && (
+                <p className="mt-2 text-xs text-text-secondary">
+                  That's only timestamps — copy the transcript text alongside them.
+                </p>
+              )}
               <div className="mt-2 flex justify-end gap-2">
                 <button
                   type="button"
@@ -297,7 +307,7 @@ export function EpisodeDetail() {
                 <button
                   type="button"
                   onClick={handleSaveTranscript}
-                  disabled={!transcriptDraft.trim()}
+                  disabled={!cleanedTranscript}
                   className="rounded-lg bg-accent px-3.5 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
                 >
                   Save transcript

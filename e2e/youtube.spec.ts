@@ -152,6 +152,56 @@ test.describe("YouTube episodes", () => {
     );
   });
 
+  test("a timestamps-only paste can't be saved and says why", async ({ page }) => {
+    await mockMetadata(page);
+    await addMockVideo(page);
+    await page.getByText("E2E Mock YouTube Talk").click();
+
+    await page.getByRole("button", { name: "Add transcript" }).click();
+    await page.getByPlaceholder("Paste the video transcript...").fill("0:00\n0:04\n1:02:33");
+
+    // The draft is non-empty but normalizes to nothing, so Save must stay
+    // disabled rather than silently doing nothing when clicked.
+    await expect(page.getByRole("button", { name: "Save transcript" })).toBeDisabled();
+    await expect(page.getByText(/only timestamps/)).toBeVisible();
+  });
+
+  test("adding a video clears a previous search error, and searching clears the add card", async ({
+    page,
+  }) => {
+    await mockMetadata(page);
+    await page.route("https://itunes.apple.com/search**", (route) => route.abort("failed"));
+
+    await page.goto("/#/library");
+    await page.getByRole("button", { name: "Discover" }).click();
+    const field = page.getByPlaceholder("Search podcasts, or paste a YouTube link...");
+
+    await field.fill("something");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await expect(page.getByText(/Couldn't reach the podcast search service/)).toBeVisible();
+
+    // The two actions share one field, so each must clear the other's feedback.
+    await field.fill(YOUTUBE_URL);
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(page.getByText("E2E Mock YouTube Talk")).toBeVisible();
+    await expect(page.getByText(/Couldn't reach the podcast search service/)).toHaveCount(0);
+
+    await field.fill("something else");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await expect(page.getByText("E2E Mock YouTube Talk")).toHaveCount(0);
+  });
+
+  test("the added card doesn't linger after switching tabs", async ({ page }) => {
+    await mockMetadata(page);
+    await addMockVideo(page);
+    await expect(page.getByText("E2E Mock YouTube Talk")).toBeVisible();
+
+    await page.getByRole("button", { name: "Takeaways" }).click();
+    await page.getByRole("button", { name: "Discover" }).click();
+
+    await expect(page.getByText("E2E Mock YouTube Talk")).toHaveCount(0);
+  });
+
   test("pasting a transcript enables AI summary", async ({ page }) => {
     await mockMetadata(page);
     await page.route("/api/summarize", (route) =>
