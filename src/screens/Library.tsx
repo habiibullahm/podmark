@@ -7,6 +7,7 @@ import { useFoldersStore } from "../store/useFoldersStore";
 import { usePlayer } from "../context/PlayerContext";
 import { getEffectiveStatus } from "../lib/episodes";
 import { searchPodcastEpisodes } from "../lib/itunesApi";
+import { fetchYouTubeEpisode } from "../lib/youtubeApi";
 import { buildLibraryMarkdown, downloadMarkdownFile } from "../lib/export";
 import { formatTime } from "../lib/format";
 import type { Episode } from "../data/types";
@@ -152,6 +153,29 @@ export function Library() {
   const [discoverLoading, setDiscoverLoading] = useState(false);
   const [discoverError, setDiscoverError] = useState<string | null>(null);
   const [discoverSearched, setDiscoverSearched] = useState(false);
+
+  const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [youtubeLoading, setYoutubeLoading] = useState(false);
+  const [youtubeError, setYoutubeError] = useState<string | null>(null);
+  const [youtubeAdded, setYoutubeAdded] = useState<Episode | null>(null);
+
+  const addYoutubeVideo = async () => {
+    const url = youtubeUrl.trim();
+    if (!url) return;
+    setYoutubeLoading(true);
+    setYoutubeError(null);
+    setYoutubeAdded(null);
+    try {
+      const episode = await fetchYouTubeEpisode(url);
+      addEpisode(episode);
+      setYoutubeAdded(episode);
+      setYoutubeUrl("");
+    } catch (err) {
+      setYoutubeError(err instanceof Error ? err.message : "Couldn't add that YouTube video.");
+    } finally {
+      setYoutubeLoading(false);
+    }
+  };
 
   const runDiscoverSearch = async () => {
     const term = discoverQuery.trim();
@@ -426,6 +450,39 @@ export function Library() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              addYoutubeVideo();
+            }}
+            className="flex gap-2"
+          >
+            <div className="flex-1">
+              <SearchBar
+                value={youtubeUrl}
+                onChange={setYoutubeUrl}
+                placeholder="Paste a YouTube URL..."
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={youtubeLoading || !youtubeUrl.trim()}
+              className="shrink-0 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent/90 disabled:opacity-50"
+            >
+              {youtubeLoading ? "Adding…" : "Add"}
+            </button>
+          </form>
+
+          {youtubeError && <p className="mt-3 text-sm text-text-secondary">{youtubeError}</p>}
+
+          {youtubeAdded && (
+            <div className="mt-3">
+              <DiscoverResultCard episode={youtubeAdded} added onAdd={() => {}} />
+            </div>
+          )}
+
+          <div className="my-4 border-t border-border" />
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
               runDiscoverSearch();
             }}
             className="flex gap-2"
@@ -487,7 +544,8 @@ export function Library() {
 
           {!discoverSearched && !discoverLoading && (
             <p className="mt-6 text-center text-sm text-text-tertiary">
-              Search real podcasts via iTunes — added episodes play with real audio.
+              Search real podcasts via iTunes — added episodes play with real audio. YouTube videos
+              are saved for notes and AI summary, and play on YouTube.
             </p>
           )}
         </div>

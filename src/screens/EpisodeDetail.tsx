@@ -19,6 +19,7 @@ export function EpisodeDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const episodes = useEpisodesStore((s) => s.episodes);
+  const setEpisodeDescription = useEpisodesStore((s) => s.setEpisodeDescription);
   const episode = episodes.find((e) => e.id === id);
 
   const { episode: playerEpisode, positionSec, openEpisode, getProgressFor } = usePlayer();
@@ -45,6 +46,8 @@ export function EpisodeDetail() {
   const [draftText, setDraftText] = useState("");
   const [draftTag, setDraftTag] = useState(episode?.tags[0] ?? "");
   const [generating, setGenerating] = useState(false);
+  const [addingTranscript, setAddingTranscript] = useState(false);
+  const [transcriptDraft, setTranscriptDraft] = useState("");
   const [folderMenuOpen, setFolderMenuOpen] = useState(false);
   const folderMenuRef = useRef<HTMLDivElement>(null);
   const notesEditorRef = useRef<HTMLDivElement>(null);
@@ -73,11 +76,16 @@ export function EpisodeDetail() {
     setDraftTag(episode?.tags[0] ?? "");
     setGenerating(false);
     setFolderMenuOpen(false);
+    setAddingTranscript(false);
+    setTranscriptDraft("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  // Episodes with an external sourceUrl (YouTube) have no playable audio, so
+  // handing them to the player would only spin the simulated timer and accrue
+  // listening progress the user never actually had.
   useEffect(() => {
-    if (episode) openEpisode(episode);
+    if (episode && !episode.sourceUrl) openEpisode(episode);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [episode?.id]);
 
@@ -122,6 +130,18 @@ export function EpisodeDetail() {
     setGenerating(true);
     await generateSummary(episode);
     setGenerating(false);
+  };
+
+  // A YouTube episode has no show notes to summarize from — without a pasted
+  // transcript the model would only have the title to go on, which produces a
+  // confident-sounding summary of content nobody has read.
+  const needsTranscript = !!episode.sourceUrl && !episode.description;
+
+  const handleSaveTranscript = () => {
+    if (!transcriptDraft.trim()) return;
+    setEpisodeDescription(episode.id, transcriptDraft);
+    setTranscriptDraft("");
+    setAddingTranscript(false);
   };
 
   return (
@@ -178,7 +198,9 @@ export function EpisodeDetail() {
           <div className="min-w-0">
             <p className="line-clamp-1 text-[13px] font-medium text-text-primary">{episode.show}</p>
             <p className="text-xs text-text-secondary">
-              {episode.publishedAt} · {formatTime(episode.durationSec)}
+              {[episode.publishedAt, episode.durationSec > 0 ? formatTime(episode.durationSec) : ""]
+                .filter(Boolean)
+                .join(" · ")}
             </p>
           </div>
         </div>
@@ -193,17 +215,31 @@ export function EpisodeDetail() {
         id="notes"
         className="mt-4 flex max-w-full flex-nowrap gap-2 overflow-x-auto px-5 pb-1 no-scrollbar md:flex-wrap md:overflow-visible md:px-0"
       >
-        <button
-          type="button"
-          onClick={() => {
-            setAddingNote((v) => !v);
-            setAddingHighlight(false);
-            setDraftText("");
-          }}
-          className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-bg-surface px-3.5 py-2 text-xs font-semibold text-text-primary hover:border-accent/60"
-        >
-          🕐 + Add Timestamp Note
-        </button>
+        {episode.sourceUrl ? (
+          <a
+            href={episode.sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-bg-surface px-3.5 py-2 text-xs font-semibold text-text-primary hover:border-accent/60"
+          >
+            ▶ Watch on YouTube ↗
+          </a>
+        ) : (
+          // Timestamp notes anchor to the player's position, which doesn't
+          // exist for an episode that plays outside the app — every note would
+          // silently claim 0:00.
+          <button
+            type="button"
+            onClick={() => {
+              setAddingNote((v) => !v);
+              setAddingHighlight(false);
+              setDraftText("");
+            }}
+            className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-bg-surface px-3.5 py-2 text-xs font-semibold text-text-primary hover:border-accent/60"
+          >
+            🕐 + Add Timestamp Note
+          </button>
+        )}
         <button
           type="button"
           onClick={() => {
@@ -218,7 +254,8 @@ export function EpisodeDetail() {
         <button
           type="button"
           onClick={handleSummarize}
-          disabled={generating}
+          disabled={generating || needsTranscript}
+          title={needsTranscript ? "Add the video's transcript first" : undefined}
           className={`flex shrink-0 items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-3.5 py-2 text-xs font-semibold text-accent transition-opacity disabled:opacity-70 ${
             generating ? "animate-pulse" : ""
           }`}
@@ -227,6 +264,60 @@ export function EpisodeDetail() {
           <span>{generating ? "Summarizing…" : "AI Summarize Episode"}</span>
         </button>
       </div>
+
+      {needsTranscript && (
+        <div className="mx-5 mt-3 rounded-xl border border-border bg-bg-surface p-3 md:mx-0">
+          {addingTranscript ? (
+            <>
+              <p className="text-xs font-medium text-text-secondary">
+                Open the video on YouTube, expand the description and click “Show transcript”, then
+                paste it here.
+              </p>
+              <textarea
+                autoFocus
+                value={transcriptDraft}
+                onChange={(e) => setTranscriptDraft(e.target.value)}
+                placeholder="Paste the video transcript..."
+                rows={5}
+                className="mt-2 w-full resize-none rounded-lg border border-border bg-bg-surface-alt px-3 py-2 text-[13px] text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none"
+              />
+              <div className="mt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAddingTranscript(false);
+                    setTranscriptDraft("");
+                  }}
+                  className="rounded-lg px-3 py-1.5 text-xs font-medium text-text-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveTranscript}
+                  disabled={!transcriptDraft.trim()}
+                  className="rounded-lg bg-accent px-3.5 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                >
+                  Save transcript
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[13px] text-text-secondary">
+                ✨ Add this video’s transcript to enable AI summary.
+              </p>
+              <button
+                type="button"
+                onClick={() => setAddingTranscript(true)}
+                className="shrink-0 rounded-lg bg-bg-surface-alt px-3 py-1.5 text-xs font-medium text-text-primary hover:text-accent"
+              >
+                Add transcript
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {(addingNote || addingHighlight) && (
         <div className="mx-5 mt-3 rounded-xl border border-accent/40 bg-bg-surface p-3 md:mx-0">
