@@ -12,6 +12,7 @@ import { MarkdownNoteEditor } from "../components/MarkdownNoteEditor";
 import { TimestampNoteBlock } from "../components/TimestampNoteBlock";
 import { HighlightBlock } from "../components/HighlightBlock";
 import { formatTime } from "../lib/format";
+import { normalizeTranscript } from "../lib/transcript";
 
 const DEFAULT_FREEFORM_NOTES = "- Key theme this episode revolves around...\n- ";
 
@@ -138,8 +139,9 @@ export function EpisodeDetail() {
   const needsTranscript = !!episode.sourceUrl && !episode.description;
 
   const handleSaveTranscript = () => {
-    if (!transcriptDraft.trim()) return;
-    setEpisodeDescription(episode.id, transcriptDraft);
+    const cleaned = normalizeTranscript(transcriptDraft);
+    if (!cleaned) return;
+    setEpisodeDescription(episode.id, cleaned);
     setTranscriptDraft("");
     setAddingTranscript(false);
   };
@@ -271,7 +273,7 @@ export function EpisodeDetail() {
             <>
               <p className="text-xs font-medium text-text-secondary">
                 Open the video on YouTube, expand the description and click “Show transcript”, then
-                paste it here.
+                select all and paste it here — timestamps and line breaks are cleaned up for you.
               </p>
               <textarea
                 autoFocus

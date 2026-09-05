@@ -240,15 +240,27 @@ export function Library() {
         </button>
       </div>
 
-      <div className="px-5 md:px-0">
-        <SearchBar value={search} onChange={setSearch} />
-      </div>
+      {/* The library-wide search and tag filters apply to your own episodes and
+          notes, so on Discover (which searches elsewhere) they'd be dead
+          controls sitting above a second search field. */}
+      {tab !== "discover" && (
+        <>
+          <div className="px-5 md:px-0">
+            <SearchBar value={search} onChange={setSearch} />
+          </div>
 
-      <div className="mt-3 flex max-w-full flex-nowrap gap-2 overflow-x-auto px-5 pb-1 no-scrollbar md:flex-wrap md:overflow-visible md:px-0">
-        {allTags.map((tag) => (
-          <TagChip key={tag} label={tag} active={activeTags.includes(tag)} onClick={() => toggleTag(tag)} />
-        ))}
-      </div>
+          <div className="mt-3 flex max-w-full flex-nowrap gap-2 overflow-x-auto px-5 pb-1 no-scrollbar md:flex-wrap md:overflow-visible md:px-0">
+            {allTags.map((tag) => (
+              <TagChip
+                key={tag}
+                label={tag}
+                active={activeTags.includes(tag)}
+                onClick={() => toggleTag(tag)}
+              />
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="mt-3">
         <SegmentedTabSwitcher
@@ -447,6 +459,9 @@ export function Library() {
 
       {tab === "discover" && (
         <div className="mt-1 px-5 md:px-0">
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+            Add a YouTube video
+          </p>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -459,6 +474,7 @@ export function Library() {
                 value={youtubeUrl}
                 onChange={setYoutubeUrl}
                 placeholder="Paste a YouTube URL..."
+                icon="🔗"
               />
             </div>
             <button
@@ -480,6 +496,9 @@ export function Library() {
 
           <div className="my-4 border-t border-border" />
 
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+            Search podcasts
+          </p>
           <form
             onSubmit={(e) => {
               e.preventDefault();

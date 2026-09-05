@@ -57,9 +57,14 @@ test.describe("Discover (real podcast search)", () => {
     await page.getByRole("button", { name: "Search", exact: true }).click();
     await page.getByRole("button", { name: "+ Add" }).click();
 
-    // A newly-added episode's tag ("technology") should now appear in the
-    // library-wide tag filter row, proving the shared episodes store updated.
-    await expect(page.getByRole("button", { name: "#technology" })).toBeVisible();
+    // The tag filter row is hidden on Discover (it filters your own library,
+    // not search results), so check it where it actually lives. A newly-added
+    // episode's tag ("technology") appearing there proves the shared episodes
+    // store updated.
+    // exact: true so this matches the filter chip alone — the episode card is
+    // itself a button whose accessible name also contains "#technology".
+    await page.getByRole("button", { name: "Episodes" }).click();
+    await expect(page.getByRole("button", { name: "#technology", exact: true })).toBeVisible();
   });
 
   test("clicking an added card navigates to its episode detail", async ({ page }) => {

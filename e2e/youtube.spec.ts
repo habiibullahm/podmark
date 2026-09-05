@@ -110,6 +110,28 @@ test.describe("YouTube episodes", () => {
     await expect(page.getByRole("button", { name: /Save Key Highlight/ })).toBeVisible();
   });
 
+  test("a raw timestamped transcript is cleaned before it's stored", async ({ page }) => {
+    await mockMetadata(page);
+    await addMockVideo(page);
+    await page.getByText("E2E Mock YouTube Talk").click();
+
+    // Exactly what YouTube's transcript panel puts on the clipboard: a
+    // timestamp line above each short, hard-wrapped caption cue.
+    await page.getByRole("button", { name: "Add transcript" }).click();
+    await page
+      .getByPlaceholder("Paste the video transcript...")
+      .fill("0:00\nMost people open this app and use\n0:04\nit like a search box.\n1:02:33\nThat is a mistake.");
+    await page.getByRole("button", { name: "Save transcript" }).click();
+
+    const stored = await page.evaluate(() => localStorage.getItem("podmark-episodes"));
+    const episode = JSON.parse(stored ?? "{}").state.episodes.find(
+      (e: { id: string }) => e.id === "youtube-dQw4w9WgXcQ",
+    );
+    expect(episode.description).toBe(
+      "Most people open this app and use it like a search box. That is a mistake.",
+    );
+  });
+
   test("pasting a transcript enables AI summary", async ({ page }) => {
     await mockMetadata(page);
     await page.route("/api/summarize", (route) =>
