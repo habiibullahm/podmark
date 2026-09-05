@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useEpisodesStore } from "../store/useEpisodesStore";
+import { useActivityStore } from "../store/useActivityStore";
 import type { Episode } from "../data/types";
 
 interface PlayerContextValue {
@@ -30,6 +31,10 @@ interface PlayerContextValue {
 const SPEEDS = [1, 1.2, 1.5, 2];
 const PROGRESS_STORAGE_KEY = "podmark-progress";
 const PERSIST_EVERY_N_TICKS = 5;
+// Caps a single tick's contribution to listened-minutes tracking, so a long
+// gap between ticks (e.g. the tab was backgrounded or the laptop slept while
+// still "playing") can't be misread as that much real listening time.
+const MAX_TICK_GAP_MS = 5_000;
 
 function loadStoredProgress(): Record<string, number> {
   try {
@@ -92,6 +97,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   const seekFlashTimeout = useRef<number | null>(null);
   const tickCount = useRef(0);
+  // Wall-clock timestamp of the last tick while playing, so activity logging
+  // is driven by real elapsed time rather than tick count (real audio and
+  // the simulated timer fire at different cadences). Reset to null whenever
+  // playback stops so the paused gap is never counted as listened time.
+  const lastPlayingTickAt = useRef<number | null>(null);
 
   // Single owner of "write progress, and decide whether to flush it to
   // localStorage now" — every code path that changes position (ticking,
@@ -182,6 +192,16 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (!episode) return;
     const shouldPersistNow = !isPlaying || tickCount.current % PERSIST_EVERY_N_TICKS === 0;
     persistProgress(episode.id, positionSec, shouldPersistNow);
+    if (isPlaying) {
+      const now = Date.now();
+      if (lastPlayingTickAt.current !== null) {
+        const elapsed = Math.min(now - lastPlayingTickAt.current, MAX_TICK_GAP_MS);
+        useActivityStore.getState().addListenedMs(elapsed);
+      }
+      lastPlayingTickAt.current = now;
+    } else {
+      lastPlayingTickAt.current = null;
+    }
     if (!isRealAudio && positionSec >= episode.durationSec) {
       setIsPlaying(false);
     }

@@ -1,4 +1,4 @@
-import type { DailyGoal, Episode, Folder, NoteBlock } from "./types";
+import type { Episode, Folder, NoteBlock } from "./types";
 
 export const episodes: Episode[] = [
   {
@@ -120,9 +120,3 @@ export const folders: Folder[] = [
   { id: "folder-1", name: "Q3 Learning Sprint", color: "#6366F1", episodeIds: ["ep-1", "ep-2"] },
   { id: "folder-2", name: "Investing Basics", color: "#EC4899", episodeIds: ["ep-4"] },
 ];
-
-export const dailyGoal: DailyGoal = {
-  targetMinutes: 30,
-  todayMinutes: 18,
-  last7Days: [22, 30, 12, 30, 25, 8, 18],
-};

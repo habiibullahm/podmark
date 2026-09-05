@@ -1,9 +1,10 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { dailyGoal } from "../data/mockData";
 import { useEpisodesStore } from "../store/useEpisodesStore";
 import { useNotesStore } from "../store/useNotesStore";
+import { useSettingsStore } from "../store/useSettingsStore";
 import { usePlayer } from "../context/PlayerContext";
+import { useCurrentStreak, useLast7DaysMinutes } from "../store/useActivityStore";
 import { getEffectiveStatus } from "../lib/episodes";
 import { SectionHeader } from "../components/SectionHeader";
 import { TagChip } from "../components/TagChip";
@@ -20,6 +21,9 @@ export function Insights() {
   const episodes = useEpisodesStore((s) => s.episodes);
   const notes = useNotesStore((s) => s.notes);
   const { getProgressFor } = usePlayer();
+  const streak = useCurrentStreak();
+  const dailyGoalTarget = useSettingsStore((s) => s.dailyGoalTarget);
+  const last7Days = useLast7DaysMinutes();
 
   const finishedCount = useMemo(
     () => episodes.filter((e) => getEffectiveStatus(e, getProgressFor(e.id)) === "finished").length,
@@ -45,14 +49,14 @@ export function Insights() {
   }, [notes, episodes]);
 
   const dayLabels = useMemo(last7DayLabels, []);
-  const maxMinutes = Math.max(...dailyGoal.last7Days, dailyGoal.targetMinutes);
+  const maxMinutes = Math.max(...last7Days, dailyGoalTarget);
 
   return (
     <div className="pb-40 px-5 pt-[calc(env(safe-area-inset-top)+1.25rem)] md:px-0 md:pb-16 md:pt-0">
       <h1 className="mb-5 text-xl font-semibold text-text-primary">Insights</h1>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Current streak" value="12 days" icon="🔥" />
+        <StatCard label="Current streak" value={`${streak} day${streak === 1 ? "" : "s"}`} icon="🔥" />
         <StatCard label="Episodes finished" value={String(finishedCount)} icon="✅" />
         <StatCard label="Notes captured" value={String(notes.length)} icon="📝" />
         <StatCard label="Top tag" value={tagCounts[0] ? `#${tagCounts[0][0]}` : "—"} icon="🏷️" />
@@ -61,12 +65,12 @@ export function Insights() {
       <div className="mt-6 rounded-2xl border border-border bg-bg-surface p-4">
         <p className="mb-4 text-[15px] font-semibold text-text-primary">Listening time — last 7 days</p>
         <div className="flex items-end justify-between gap-2">
-          {dailyGoal.last7Days.map((minutes, i) => (
+          {last7Days.map((minutes, i) => (
             <div key={i} className="flex flex-1 flex-col items-center gap-1.5">
               <div className="flex h-24 w-full items-end justify-center">
                 <div
                   className={`w-full max-w-[28px] rounded-t-md ${
-                    minutes >= dailyGoal.targetMinutes ? "bg-success" : "bg-accent/60"
+                    minutes >= dailyGoalTarget ? "bg-success" : "bg-accent/60"
                   }`}
                   style={{ height: `${Math.max(6, (minutes / maxMinutes) * 96)}px` }}
                 />

@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { useUIStore } from "../store/useUIStore";
+import { useCurrentStreak } from "../store/useActivityStore";
 import { SIDEBAR_WIDTH_CLASS } from "../lib/sidebarLayout";
 
 const NAV = [
@@ -11,6 +12,7 @@ const NAV = [
 export function Sidebar() {
   const collapsed = useUIStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
+  const streak = useCurrentStreak();
 
   return (
     <aside
@@ -102,7 +104,9 @@ export function Sidebar() {
         {!collapsed && (
           <div className="min-w-0">
             <p className="line-clamp-1 text-sm font-medium text-text-primary">Alex</p>
-            <p className="flex items-center gap-1 text-xs text-text-secondary">🔥 12 day streak</p>
+            <p className="flex items-center gap-1 text-xs text-text-secondary">
+              🔥 {streak} day{streak === 1 ? "" : "s"} streak
+            </p>
           </div>
         )}
       </NavLink>
