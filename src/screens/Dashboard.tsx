@@ -1,9 +1,8 @@
 import { useNavigate } from "react-router-dom";
-import { dailyGoal } from "../data/mockData";
 import { useNotesStore } from "../store/useNotesStore";
 import { useEpisodesStore } from "../store/useEpisodesStore";
 import { useSettingsStore } from "../store/useSettingsStore";
-import { useCurrentStreak } from "../store/useActivityStore";
+import { useCurrentStreak, useTodayMinutes, useLast7DaysMinutes } from "../store/useActivityStore";
 import { usePlayer } from "../context/PlayerContext";
 import { getEffectiveStatus } from "../lib/episodes";
 import { AppHeader } from "../components/AppHeader";
@@ -28,7 +27,9 @@ export function Dashboard() {
   const notes = useNotesStore((s) => s.notes);
   const recentTakeaways = [...notes].reverse().slice(0, 6);
   const dailyGoalTarget = useSettingsStore((s) => s.dailyGoalTarget);
-  const goal = { ...dailyGoal, targetMinutes: dailyGoalTarget };
+  const todayMinutes = useTodayMinutes();
+  const last7Days = useLast7DaysMinutes();
+  const goal = { targetMinutes: dailyGoalTarget, todayMinutes, last7Days };
   const streak = useCurrentStreak();
 
   return (
