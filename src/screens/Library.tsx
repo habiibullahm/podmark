@@ -7,7 +7,7 @@ import { useFoldersStore } from "../store/useFoldersStore";
 import { usePlayer } from "../context/PlayerContext";
 import { getEffectiveStatus } from "../lib/episodes";
 import { searchPodcastEpisodes } from "../lib/itunesApi";
-import { fetchYouTubeEpisode } from "../lib/youtubeApi";
+import { fetchYouTubeEpisode, isYouTubeUrl } from "../lib/youtubeApi";
 import { buildLibraryMarkdown, downloadMarkdownFile } from "../lib/export";
 import { formatTime } from "../lib/format";
 import type { Episode } from "../data/types";
@@ -154,13 +154,13 @@ export function Library() {
   const [discoverError, setDiscoverError] = useState<string | null>(null);
   const [discoverSearched, setDiscoverSearched] = useState(false);
 
-  const [youtubeUrl, setYoutubeUrl] = useState("");
+  const pastedYoutubeLink = isYouTubeUrl(discoverQuery);
   const [youtubeLoading, setYoutubeLoading] = useState(false);
   const [youtubeError, setYoutubeError] = useState<string | null>(null);
   const [youtubeAdded, setYoutubeAdded] = useState<Episode | null>(null);
 
   const addYoutubeVideo = async () => {
-    const url = youtubeUrl.trim();
+    const url = discoverQuery.trim();
     if (!url) return;
     setYoutubeLoading(true);
     setYoutubeError(null);
@@ -169,7 +169,7 @@ export function Library() {
       const episode = await fetchYouTubeEpisode(url);
       addEpisode(episode);
       setYoutubeAdded(episode);
-      setYoutubeUrl("");
+      setDiscoverQuery("");
     } catch (err) {
       setYoutubeError(err instanceof Error ? err.message : "Couldn't add that YouTube video.");
     } finally {
@@ -459,30 +459,37 @@ export function Library() {
 
       {tab === "discover" && (
         <div className="mt-1 px-5 md:px-0">
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
-            Add a YouTube video
-          </p>
+          {/* One field for both ways in: a pasted link is added, anything else
+              is searched. The icon and button label switch as you type, so the
+              field says which of the two it's about to do. */}
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              addYoutubeVideo();
+              if (pastedYoutubeLink) addYoutubeVideo();
+              else runDiscoverSearch();
             }}
             className="flex gap-2"
           >
             <div className="flex-1">
               <SearchBar
-                value={youtubeUrl}
-                onChange={setYoutubeUrl}
-                placeholder="Paste a YouTube URL..."
-                icon="🔗"
+                value={discoverQuery}
+                onChange={setDiscoverQuery}
+                placeholder="Search podcasts, or paste a YouTube link..."
+                icon={pastedYoutubeLink ? "🔗" : "🔍"}
               />
             </div>
             <button
               type="submit"
-              disabled={youtubeLoading || !youtubeUrl.trim()}
+              disabled={youtubeLoading || discoverLoading || !discoverQuery.trim()}
               className="shrink-0 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent/90 disabled:opacity-50"
             >
-              {youtubeLoading ? "Adding…" : "Add"}
+              {youtubeLoading
+                ? "Adding…"
+                : discoverLoading
+                  ? "Searching…"
+                  : pastedYoutubeLink
+                    ? "Add"
+                    : "Search"}
             </button>
           </form>
 
@@ -493,34 +500,6 @@ export function Library() {
               <DiscoverResultCard episode={youtubeAdded} added onAdd={() => {}} />
             </div>
           )}
-
-          <div className="my-4 border-t border-border" />
-
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
-            Search podcasts
-          </p>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              runDiscoverSearch();
-            }}
-            className="flex gap-2"
-          >
-            <div className="flex-1">
-              <SearchBar
-                value={discoverQuery}
-                onChange={setDiscoverQuery}
-                placeholder="Search real podcasts & episodes..."
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={discoverLoading || !discoverQuery.trim()}
-              className="shrink-0 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent/90 disabled:opacity-50"
-            >
-              {discoverLoading ? "Searching…" : "Search"}
-            </button>
-          </form>
 
           {discoverError && (
             <p className="mt-3 text-sm text-text-secondary">{discoverError}</p>
@@ -563,8 +542,8 @@ export function Library() {
 
           {!discoverSearched && !discoverLoading && (
             <p className="mt-6 text-center text-sm text-text-tertiary">
-              Search real podcasts via iTunes — added episodes play with real audio. YouTube videos
-              are saved for notes and AI summary, and play on YouTube.
+              Search real podcasts via iTunes — added episodes play with real audio. Or paste a
+              YouTube link to save a video for notes and AI summary.
             </p>
           )}
         </div>

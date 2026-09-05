@@ -25,7 +25,7 @@ async function mockMetadata(page: import("@playwright/test").Page) {
 async function addMockVideo(page: import("@playwright/test").Page) {
   await page.goto("/#/library");
   await page.getByRole("button", { name: "Discover" }).click();
-  await page.getByPlaceholder("Paste a YouTube URL...").fill(YOUTUBE_URL);
+  await page.getByPlaceholder("Search podcasts, or paste a YouTube link...").fill(YOUTUBE_URL);
   await page.getByRole("button", { name: "Add", exact: true }).click();
 }
 
@@ -56,21 +56,41 @@ test.describe("YouTube episodes", () => {
     await expect(card.getByText(/left$/)).toHaveCount(0);
   });
 
-  test("shows the error message when the URL isn't a YouTube link", async ({ page }) => {
+  test("shows the error message for a YouTube link that isn't a video", async ({ page }) => {
     await page.route("/api/youtube", (route) =>
       route.fulfill({
         status: 400,
         contentType: "application/json",
-        body: JSON.stringify({ error: "That doesn't look like a YouTube URL." }),
+        body: JSON.stringify({ error: "That doesn't look like a YouTube video URL." }),
       }),
     );
 
     await page.goto("/#/library");
     await page.getByRole("button", { name: "Discover" }).click();
-    await page.getByPlaceholder("Paste a YouTube URL...").fill("https://example.com/not-youtube");
+    // A channel link routes to the add path (it is a YouTube URL) but has no
+    // video id for the server to resolve.
+    await page.getByPlaceholder("Search podcasts, or paste a YouTube link...").fill("https://www.youtube.com/@MITOCW");
     await page.getByRole("button", { name: "Add", exact: true }).click();
 
-    await expect(page.getByText(/doesn't look like a YouTube URL/)).toBeVisible();
+    await expect(page.getByText(/doesn't look like a YouTube video URL/)).toBeVisible();
+  });
+
+  test("plain search terms go to podcast search, not the YouTube path", async ({ page }) => {
+    await page.route("https://itunes.apple.com/search**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ resultCount: 0, results: [] }),
+      }),
+    );
+
+    await page.goto("/#/library");
+    await page.getByRole("button", { name: "Discover" }).click();
+    await page.getByPlaceholder("Search podcasts, or paste a YouTube link...").fill("structured notes");
+
+    // The one field switches action based on what's in it.
+    await expect(page.getByRole("button", { name: "Search", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Add", exact: true })).toHaveCount(0);
   });
 
   test("shows the error message when the video is unavailable", async ({ page }) => {
@@ -86,7 +106,7 @@ test.describe("YouTube episodes", () => {
 
     await page.goto("/#/library");
     await page.getByRole("button", { name: "Discover" }).click();
-    await page.getByPlaceholder("Paste a YouTube URL...").fill(YOUTUBE_URL);
+    await page.getByPlaceholder("Search podcasts, or paste a YouTube link...").fill(YOUTUBE_URL);
     await page.getByRole("button", { name: "Add", exact: true }).click();
 
     await expect(page.getByText(/isn't available/)).toBeVisible();

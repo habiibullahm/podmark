@@ -28,7 +28,7 @@ test.describe("Discover (real podcast search)", () => {
 
     await page.goto("/#/library");
     await page.getByRole("button", { name: "Discover" }).click();
-    await page.getByPlaceholder("Search real podcasts & episodes...").fill("test query");
+    await page.getByPlaceholder("Search podcasts, or paste a YouTube link...").fill("test query");
     await page.getByRole("button", { name: "Search", exact: true }).click();
 
     await expect(page.getByText("E2E Mock Episode")).toBeVisible();
@@ -53,7 +53,7 @@ test.describe("Discover (real podcast search)", () => {
 
     await page.goto("/#/library");
     await page.getByRole("button", { name: "Discover" }).click();
-    await page.getByPlaceholder("Search real podcasts & episodes...").fill("test query");
+    await page.getByPlaceholder("Search podcasts, or paste a YouTube link...").fill("test query");
     await page.getByRole("button", { name: "Search", exact: true }).click();
     await page.getByRole("button", { name: "+ Add" }).click();
 
@@ -78,7 +78,7 @@ test.describe("Discover (real podcast search)", () => {
 
     await page.goto("/#/library");
     await page.getByRole("button", { name: "Discover" }).click();
-    await page.getByPlaceholder("Search real podcasts & episodes...").fill("test query");
+    await page.getByPlaceholder("Search podcasts, or paste a YouTube link...").fill("test query");
     await page.getByRole("button", { name: "Search", exact: true }).click();
     await page.getByRole("button", { name: "+ Add" }).click();
     await expect(page.getByRole("button", { name: "✓ Added" })).toBeVisible();
@@ -97,7 +97,7 @@ test.describe("Discover (real podcast search)", () => {
 
     await page.goto("/#/library");
     await page.getByRole("button", { name: "Discover" }).click();
-    await page.getByPlaceholder("Search real podcasts & episodes...").fill("test query");
+    await page.getByPlaceholder("Search podcasts, or paste a YouTube link...").fill("test query");
     await page.getByRole("button", { name: "Search", exact: true }).click();
 
     await expect(page.getByText(/Couldn't reach the podcast search service/)).toBeVisible();
@@ -114,7 +114,7 @@ test.describe("Discover (real podcast search)", () => {
 
     await page.goto("/#/library");
     await page.getByRole("button", { name: "Discover" }).click();
-    await page.getByPlaceholder("Search real podcasts & episodes...").fill("zzzznoresults");
+    await page.getByPlaceholder("Search podcasts, or paste a YouTube link...").fill("zzzznoresults");
     await page.getByRole("button", { name: "Search", exact: true }).click();
 
     await expect(page.getByText(/No episodes found/)).toBeVisible();

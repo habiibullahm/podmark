@@ -51,7 +51,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const videoId = extractVideoId(url);
   if (!videoId) {
-    res.status(400).json({ error: "That doesn't look like a YouTube URL." });
+    // Reachable by pasting a channel or playlist link, so name what's missing.
+    res.status(400).json({ error: "That doesn't look like a YouTube video URL." });
     return;
   }
 

@@ -7,6 +7,13 @@ interface YouTubeMetadata {
   thumbnailUrl?: string;
 }
 
+// Decides which action a single input should take. Deliberately lenient — the
+// server does the real parsing and returns a precise error, so this only needs
+// to tell "a link was pasted" apart from "words were typed".
+export function isYouTubeUrl(value: string): boolean {
+  return /youtube\.com|youtu\.be/i.test(value.trim());
+}
+
 export async function fetchYouTubeEpisode(url: string): Promise<Episode> {
   const res = await fetch("/api/youtube", {
     method: "POST",
