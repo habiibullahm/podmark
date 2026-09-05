@@ -42,6 +42,20 @@ test.describe("YouTube episodes", () => {
     expect(stored).toContain(YOUTUBE_URL);
   });
 
+  test("a newly added video is not-started, not completed", async ({ page }) => {
+    await mockMetadata(page);
+    await addMockVideo(page);
+
+    await page.getByRole("button", { name: "Episodes" }).click();
+    const card = page.locator("button", { hasText: "E2E Mock YouTube Talk" }).first();
+
+    // A YouTube video has an unknown (0) duration, which must not be read as
+    // "watched to the end" — and with no duration there's no countdown to show.
+    await expect(card).toBeVisible();
+    await expect(card.getByText("✓ Completed")).toHaveCount(0);
+    await expect(card.getByText(/left$/)).toHaveCount(0);
+  });
+
   test("shows the error message when the URL isn't a YouTube link", async ({ page }) => {
     await page.route("/api/youtube", (route) =>
       route.fulfill({

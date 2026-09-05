@@ -30,27 +30,44 @@ export function CurrentlyLearningWidget({
         </div>
       </div>
 
-      <div className="mt-4">
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-bg-surface-alt">
-          <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
+      {episode.durationSec > 0 && (
+        <div className="mt-4">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-bg-surface-alt">
+            <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
+          </div>
+          <p className="mt-1.5 text-xs text-text-secondary">
+            {formatTime(progressSec)} / {formatTime(episode.durationSec)}
+          </p>
         </div>
-        <p className="mt-1.5 text-xs text-text-secondary">
-          {formatTime(progressSec)} / {formatTime(episode.durationSec)}
-        </p>
-      </div>
+      )}
 
       <div className="mt-4 flex gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            playEpisode(episode);
-            navigate(`/episode/${episode.id}`);
-          }}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent/90"
-        >
-          <span className="inline-flex items-center leading-none">▶</span>
-          {hasStarted ? "Resume Listening" : "Start Listening"}
-        </button>
+        {episode.sourceUrl ? (
+          // This episode plays outside the app, so it must never reach
+          // playEpisode — that would start the simulated timer on audio the
+          // user can't actually hear.
+          <a
+            href={episode.sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent/90"
+          >
+            <span className="inline-flex items-center leading-none">▶</span>
+            Watch on YouTube ↗
+          </a>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              playEpisode(episode);
+              navigate(`/episode/${episode.id}`);
+            }}
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent/90"
+          >
+            <span className="inline-flex items-center leading-none">▶</span>
+            {hasStarted ? "Resume Listening" : "Start Listening"}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => navigate(`/episode/${episode.id}#notes`)}
