@@ -138,7 +138,9 @@ test.describe("YouTube episodes", () => {
     await expect(page.getByText(/isn't available/)).toBeVisible();
   });
 
-  test("episode detail offers YouTube playback and hides timestamp notes", async ({ page }) => {
+  test("episode detail is notes-only: YouTube link, highlights, no player, no AI", async ({
+    page,
+  }) => {
     await mockMetadata(page);
     await addMockVideo(page);
     await page.getByText("E2E Mock YouTube Talk").click();
@@ -148,48 +150,17 @@ test.describe("YouTube episodes", () => {
       "href",
       YOUTUBE_URL,
     );
+    await expect(page.getByRole("button", { name: /Save Key Highlight/ })).toBeVisible();
 
     // No playable audio, so timestamp notes (which anchor to player position)
     // are hidden and the mini player never opens.
     await expect(page.getByRole("button", { name: /Add Timestamp Note/ })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Play" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /Save Key Highlight/ })).toBeVisible();
-  });
 
-  test("a raw timestamped transcript is cleaned before it's stored", async ({ page }) => {
-    await mockMetadata(page);
-    await addMockVideo(page);
-    await page.getByText("E2E Mock YouTube Talk").click();
-
-    // Exactly what YouTube's transcript panel puts on the clipboard: a
-    // timestamp line above each short, hard-wrapped caption cue.
-    await page.getByRole("button", { name: "Add transcript" }).click();
-    await page
-      .getByPlaceholder("Paste the video transcript...")
-      .fill("0:00\nMost people open this app and use\n0:04\nit like a search box.\n1:02:33\nThat is a mistake.");
-    await page.getByRole("button", { name: "Save transcript" }).click();
-
-    const stored = await page.evaluate(() => localStorage.getItem("podmark-episodes"));
-    const episode = JSON.parse(stored ?? "{}").state.episodes.find(
-      (e: { id: string }) => e.id === "youtube-dQw4w9WgXcQ",
-    );
-    expect(episode.description).toBe(
-      "Most people open this app and use it like a search box. That is a mistake.",
-    );
-  });
-
-  test("a timestamps-only paste can't be saved and says why", async ({ page }) => {
-    await mockMetadata(page);
-    await addMockVideo(page);
-    await page.getByText("E2E Mock YouTube Talk").click();
-
-    await page.getByRole("button", { name: "Add transcript" }).click();
-    await page.getByPlaceholder("Paste the video transcript...").fill("0:00\n0:04\n1:02:33");
-
-    // The draft is non-empty but normalizes to nothing, so Save must stay
-    // disabled rather than silently doing nothing when clicked.
-    await expect(page.getByRole("button", { name: "Save transcript" })).toBeDisabled();
-    await expect(page.getByText(/only timestamps/)).toBeVisible();
+    // And no legitimate way to get the video's content, so the app doesn't
+    // offer a summary it can't ground — no button, no transcript prompt.
+    await expect(page.getByRole("button", { name: /AI Summarize/ })).toHaveCount(0);
+    await expect(page.getByText(/transcript/i)).toHaveCount(0);
   });
 
   test("adding a video clears a previous search error, and searching clears the add card", async ({
@@ -226,34 +197,5 @@ test.describe("YouTube episodes", () => {
     await page.getByRole("button", { name: "Discover" }).click();
 
     await expect(page.getByText("E2E Mock YouTube Talk")).toHaveCount(0);
-  });
-
-  test("pasting a transcript enables AI summary", async ({ page }) => {
-    await mockMetadata(page);
-    await page.route("/api/summarize", (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ bullets: ["Transcript-grounded bullet."] }),
-      }),
-    );
-
-    await addMockVideo(page);
-    await page.getByText("E2E Mock YouTube Talk").click();
-
-    // Summarizing is blocked until there's real content to summarize.
-    await expect(page.getByRole("button", { name: /AI Summarize Episode/ })).toBeDisabled();
-
-    await page.getByRole("button", { name: "Add transcript" }).click();
-    await page
-      .getByPlaceholder("Paste the video transcript...")
-      .fill("Welcome to the show. Today we discuss structured note-taking at length.");
-    await page.getByRole("button", { name: "Save transcript" }).click();
-
-    const summarize = page.getByRole("button", { name: /AI Summarize Episode/ });
-    await expect(summarize).toBeEnabled();
-    await summarize.click();
-
-    await expect(page.getByText("Transcript-grounded bullet.")).toBeVisible();
   });
 });

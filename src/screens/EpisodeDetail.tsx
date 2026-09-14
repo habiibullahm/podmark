@@ -12,7 +12,6 @@ import { MarkdownNoteEditor } from "../components/MarkdownNoteEditor";
 import { TimestampNoteBlock } from "../components/TimestampNoteBlock";
 import { HighlightBlock } from "../components/HighlightBlock";
 import { formatTime } from "../lib/format";
-import { normalizeTranscript } from "../lib/transcript";
 
 const DEFAULT_FREEFORM_NOTES = "- Key theme this episode revolves around...\n- ";
 
@@ -20,7 +19,6 @@ export function EpisodeDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const episodes = useEpisodesStore((s) => s.episodes);
-  const setEpisodeDescription = useEpisodesStore((s) => s.setEpisodeDescription);
   const episode = episodes.find((e) => e.id === id);
 
   const { episode: playerEpisode, positionSec, openEpisode, getProgressFor } = usePlayer();
@@ -47,8 +45,6 @@ export function EpisodeDetail() {
   const [draftText, setDraftText] = useState("");
   const [draftTag, setDraftTag] = useState(episode?.tags[0] ?? "");
   const [generating, setGenerating] = useState(false);
-  const [addingTranscript, setAddingTranscript] = useState(false);
-  const [transcriptDraft, setTranscriptDraft] = useState("");
   const [folderMenuOpen, setFolderMenuOpen] = useState(false);
   const folderMenuRef = useRef<HTMLDivElement>(null);
   const notesEditorRef = useRef<HTMLDivElement>(null);
@@ -77,8 +73,6 @@ export function EpisodeDetail() {
     setDraftTag(episode?.tags[0] ?? "");
     setGenerating(false);
     setFolderMenuOpen(false);
-    setAddingTranscript(false);
-    setTranscriptDraft("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -133,23 +127,11 @@ export function EpisodeDetail() {
     setGenerating(false);
   };
 
-  // A YouTube episode has no show notes to summarize from — without a pasted
-  // transcript the model would only have the title to go on, which produces a
-  // confident-sounding summary of content nobody has read.
-  const needsTranscript = !!episode.sourceUrl && !episode.description;
-
-  // Gate Save on what would actually be stored, not the raw draft — a paste of
-  // nothing but timestamps normalizes to empty, and an enabled button that
-  // silently does nothing is worse than a disabled one that says why.
-  const cleanedTranscript = normalizeTranscript(transcriptDraft);
-  const transcriptIsTimestampsOnly = transcriptDraft.trim() !== "" && cleanedTranscript === "";
-
-  const handleSaveTranscript = () => {
-    if (!cleanedTranscript) return;
-    setEpisodeDescription(episode.id, cleanedTranscript);
-    setTranscriptDraft("");
-    setAddingTranscript(false);
-  };
+  // There's no legitimate way to get a YouTube video's content — captions are
+  // gated and the audio can't be fetched — so a summary would be the model
+  // guessing from a title. Rather than offer a button that can't deliver,
+  // YouTube episodes are notes-only.
+  const canSummarize = !episode.sourceUrl;
 
   return (
     <div className="pb-40 md:pb-16">
@@ -258,78 +240,20 @@ export function EpisodeDetail() {
         >
           ⭐ + Save Key Highlight
         </button>
-        <button
-          type="button"
-          onClick={handleSummarize}
-          disabled={generating || needsTranscript}
-          title={needsTranscript ? "Add the video's transcript first" : undefined}
-          className={`flex shrink-0 items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-3.5 py-2 text-xs font-semibold text-accent transition-opacity disabled:opacity-70 ${
-            generating ? "animate-pulse" : ""
-          }`}
-        >
-          <span className={generating ? "animate-pulse" : ""}>✨</span>
-          <span>{generating ? "Summarizing…" : "AI Summarize Episode"}</span>
-        </button>
+        {canSummarize && (
+          <button
+            type="button"
+            onClick={handleSummarize}
+            disabled={generating}
+            className={`flex shrink-0 items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-3.5 py-2 text-xs font-semibold text-accent transition-opacity disabled:opacity-70 ${
+              generating ? "animate-pulse" : ""
+            }`}
+          >
+            <span className={generating ? "animate-pulse" : ""}>✨</span>
+            <span>{generating ? "Summarizing…" : "AI Summarize Episode"}</span>
+          </button>
+        )}
       </div>
-
-      {needsTranscript && (
-        <div className="mx-5 mt-3 rounded-xl border border-border bg-bg-surface p-3 md:mx-0">
-          {addingTranscript ? (
-            <>
-              <p className="text-xs font-medium text-text-secondary">
-                Open the video on YouTube, expand the description and click “Show transcript”, then
-                select all and paste it here — timestamps and line breaks are cleaned up for you.
-              </p>
-              <textarea
-                autoFocus
-                value={transcriptDraft}
-                onChange={(e) => setTranscriptDraft(e.target.value)}
-                placeholder="Paste the video transcript..."
-                rows={5}
-                className="mt-2 w-full resize-none rounded-lg border border-border bg-bg-surface-alt px-3 py-2 text-[13px] text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none"
-              />
-              {transcriptIsTimestampsOnly && (
-                <p className="mt-2 text-xs text-text-secondary">
-                  That's only timestamps — copy the transcript text alongside them.
-                </p>
-              )}
-              <div className="mt-2 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAddingTranscript(false);
-                    setTranscriptDraft("");
-                  }}
-                  className="rounded-lg px-3 py-1.5 text-xs font-medium text-text-secondary"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveTranscript}
-                  disabled={!cleanedTranscript}
-                  className="rounded-lg bg-accent px-3.5 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                >
-                  Save transcript
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[13px] text-text-secondary">
-                ✨ Add this video’s transcript to enable AI summary.
-              </p>
-              <button
-                type="button"
-                onClick={() => setAddingTranscript(true)}
-                className="shrink-0 rounded-lg bg-bg-surface-alt px-3 py-1.5 text-xs font-medium text-text-primary hover:text-accent"
-              >
-                Add transcript
-              </button>
-            </div>
-          )}
-        </div>
-      )}
 
       {(addingNote || addingHighlight) && (
         <div className="mx-5 mt-3 rounded-xl border border-accent/40 bg-bg-surface p-3 md:mx-0">
@@ -380,7 +304,7 @@ export function EpisodeDetail() {
         </div>
       )}
 
-      {aiSummaryError && !aiSummary && (
+      {canSummarize && aiSummaryError && !aiSummary && (
         <div className="mx-5 mt-4 flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-surface p-3 md:mx-0">
           <p className="text-[13px] text-text-secondary">✨ {aiSummaryError}</p>
           <button
@@ -394,7 +318,7 @@ export function EpisodeDetail() {
         </div>
       )}
 
-      {aiSummary && (
+      {canSummarize && aiSummary && (
         <div className="mx-5 mt-4 md:mx-0">
           <AISummaryCard
             bullets={aiSummary}

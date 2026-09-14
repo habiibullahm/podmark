@@ -566,7 +566,7 @@ export function Library() {
           {!discoverSearched && !discoverLoading && (
             <p className="mt-6 text-center text-sm text-text-tertiary">
               Search real podcasts via iTunes — added episodes play with real audio. Or paste a
-              YouTube link to save a video for notes and AI summary.
+              YouTube link to keep notes on a video you watch there.
             </p>
           )}
         </div>

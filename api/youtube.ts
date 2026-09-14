@@ -13,8 +13,8 @@ interface OEmbedResponse {
 // oEmbed is YouTube's public, key-less metadata endpoint. It deliberately does
 // NOT expose captions or duration — fetching those would mean scraping the
 // watch page, which YouTube gates behind a PO Token and blocks from datacenter
-// IPs, so it would fail only in production. Transcripts are pasted by the user
-// instead; see the "Add transcript" flow on the episode detail screen.
+// IPs, so it would fail only in production. With no legitimate way to get a
+// video's content, YouTube episodes are notes-only: no AI summary is offered.
 const OEMBED_URL = "https://www.youtube.com/oembed";
 
 // Covers watch?v=, youtu.be/, /shorts/, /live/ and /embed/ forms. A YouTube
