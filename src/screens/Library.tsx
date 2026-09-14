@@ -54,20 +54,23 @@ function DiscoverResultCard({ episode, onAdd, added }: { episode: Episode; onAdd
           <p className="text-xs text-text-tertiary">{formatTime(episode.durationSec)}</p>
         )}
       </div>
+      {/* Once added, the button names where it went and opens it — a disabled
+          "Added" pill hid that the card was now the way in. */}
       <button
         type="button"
         onClick={(e) => {
           e.stopPropagation();
-          onAdd();
+          if (added) navigate(`/episode/${episode.id}`);
+          else onAdd();
         }}
-        disabled={added}
+        title={added ? "Open in your Library" : undefined}
         className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
           added
-            ? "bg-success/15 text-success"
+            ? "bg-success/15 text-success hover:bg-success/25"
             : "bg-accent text-white hover:bg-accent/90"
         }`}
       >
-        {added ? "✓ Added" : "+ Add"}
+        {added ? "✓ In Library" : "+ Add to Library"}
       </button>
     </div>
   );
