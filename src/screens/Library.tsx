@@ -54,20 +54,23 @@ function DiscoverResultCard({ episode, onAdd, added }: { episode: Episode; onAdd
           <p className="text-xs text-text-tertiary">{formatTime(episode.durationSec)}</p>
         )}
       </div>
+      {/* Once added, the button names where it went and opens it — a disabled
+          "Added" pill hid that the card was now the way in. */}
       <button
         type="button"
         onClick={(e) => {
           e.stopPropagation();
-          onAdd();
+          if (added) navigate(`/episode/${episode.id}`);
+          else onAdd();
         }}
-        disabled={added}
+        title={added ? "Open in your Library" : undefined}
         className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
           added
-            ? "bg-success/15 text-success"
+            ? "bg-success/15 text-success hover:bg-success/25"
             : "bg-accent text-white hover:bg-accent/90"
         }`}
       >
-        {added ? "✓ Added" : "+ Add"}
+        {added ? "✓ In Library" : "+ Add to Library"}
       </button>
     </div>
   );
@@ -157,24 +160,27 @@ export function Library() {
   const pastedYoutubeLink = isYouTubeUrl(discoverQuery);
   const [youtubeLoading, setYoutubeLoading] = useState(false);
   const [youtubeError, setYoutubeError] = useState<string | null>(null);
-  const [youtubeAdded, setYoutubeAdded] = useState<Episode | null>(null);
+  const [youtubeResult, setYoutubeResult] = useState<Episode | null>(null);
 
-  const addYoutubeVideo = async () => {
+  // Looking up a link only previews it — nothing is added until the user
+  // presses "+ Add to Library" on the card, exactly as with a search result.
+  // Adding straight from the field made the two paths behave differently
+  // despite sharing one input, and left people unsure whether they'd just
+  // committed something.
+  const lookupYoutubeVideo = async () => {
     const url = discoverQuery.trim();
     if (!url) return;
     setYoutubeLoading(true);
     setYoutubeError(null);
-    setYoutubeAdded(null);
+    setYoutubeResult(null);
     // The two actions share one field, so each clears the other's feedback —
-    // otherwise a failed search stays on screen under a successful add.
+    // otherwise a failed search stays on screen under a successful lookup.
     setDiscoverError(null);
     try {
-      const episode = await fetchYouTubeEpisode(url);
-      addEpisode(episode);
-      setYoutubeAdded(episode);
+      setYoutubeResult(await fetchYouTubeEpisode(url));
       setDiscoverQuery("");
     } catch (err) {
-      setYoutubeError(err instanceof Error ? err.message : "Couldn't add that YouTube video.");
+      setYoutubeError(err instanceof Error ? err.message : "Couldn't look up that YouTube video.");
     } finally {
       setYoutubeLoading(false);
     }
@@ -186,7 +192,7 @@ export function Library() {
     setDiscoverLoading(true);
     setDiscoverError(null);
     setYoutubeError(null);
-    setYoutubeAdded(null);
+    setYoutubeResult(null);
     try {
       const results = await searchPodcastEpisodes(term);
       setDiscoverResults(results);
@@ -255,9 +261,9 @@ export function Library() {
             setTab(t);
             closeFolderView();
             setNewFolderOpen(false);
-            // Transient feedback for the last add — it shouldn't be waiting
+            // Transient feedback for the last lookup — it shouldn't be waiting
             // here when the user comes back to this tab later.
-            setYoutubeAdded(null);
+            setYoutubeResult(null);
             setYoutubeError(null);
           }}
         />
@@ -470,13 +476,15 @@ export function Library() {
 
       {tab === "discover" && (
         <div className="mt-1 px-5 md:px-0">
-          {/* One field for both ways in: a pasted link is added, anything else
-              is searched. The icon and button label switch as you type, so the
-              field says which of the two it's about to do. */}
+          {/* One field for both ways in: a pasted link is looked up, anything
+              else is searched. Either way the result is a preview card and
+              "+ Add to Library" is the only thing that adds. The icon and
+              button label switch as you type, so the field says which it's
+              about to do. */}
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              if (pastedYoutubeLink) addYoutubeVideo();
+              if (pastedYoutubeLink) lookupYoutubeVideo();
               else runDiscoverSearch();
             }}
             className="flex gap-2"
@@ -495,20 +503,24 @@ export function Library() {
               className="shrink-0 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent/90 disabled:opacity-50"
             >
               {youtubeLoading
-                ? "Adding…"
+                ? "Looking up…"
                 : discoverLoading
                   ? "Searching…"
                   : pastedYoutubeLink
-                    ? "Add"
+                    ? "Look up"
                     : "Search"}
             </button>
           </form>
 
           {youtubeError && <p className="mt-3 text-sm text-text-secondary">{youtubeError}</p>}
 
-          {youtubeAdded && (
+          {youtubeResult && (
             <div className="mt-3">
-              <DiscoverResultCard episode={youtubeAdded} added onAdd={() => {}} />
+              <DiscoverResultCard
+                episode={youtubeResult}
+                added={episodes.some((e) => e.id === youtubeResult.id)}
+                onAdd={() => addEpisode(youtubeResult)}
+              />
             </div>
           )}
 
@@ -554,7 +566,7 @@ export function Library() {
           {!discoverSearched && !discoverLoading && (
             <p className="mt-6 text-center text-sm text-text-tertiary">
               Search real podcasts via iTunes — added episodes play with real audio. Or paste a
-              YouTube link to save a video for notes and AI summary.
+              YouTube link to keep notes on a video you watch there.
             </p>
           )}
         </div>
