@@ -14,11 +14,11 @@ dist-ssr
 .env
 .env.*
 
-# Playwright
-/test-results/
-/playwright-report/
-/blob-report/
-/playwright/.cache/
+# Playwright (unanchored: these live under frontend/)
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
 
 # Editor directories and files
 .vscode/*
