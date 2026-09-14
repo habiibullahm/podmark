@@ -7,6 +7,7 @@ import { useFoldersStore } from "../store/useFoldersStore";
 import { usePlayer } from "../context/PlayerContext";
 import { getEffectiveStatus } from "../lib/episodes";
 import { searchPodcastEpisodes } from "../lib/itunesApi";
+import { fetchYouTubeEpisode, isYouTubeUrl } from "../lib/youtubeApi";
 import { buildLibraryMarkdown, downloadMarkdownFile } from "../lib/export";
 import { formatTime } from "../lib/format";
 import type { Episode } from "../data/types";
@@ -153,11 +154,39 @@ export function Library() {
   const [discoverError, setDiscoverError] = useState<string | null>(null);
   const [discoverSearched, setDiscoverSearched] = useState(false);
 
+  const pastedYoutubeLink = isYouTubeUrl(discoverQuery);
+  const [youtubeLoading, setYoutubeLoading] = useState(false);
+  const [youtubeError, setYoutubeError] = useState<string | null>(null);
+  const [youtubeAdded, setYoutubeAdded] = useState<Episode | null>(null);
+
+  const addYoutubeVideo = async () => {
+    const url = discoverQuery.trim();
+    if (!url) return;
+    setYoutubeLoading(true);
+    setYoutubeError(null);
+    setYoutubeAdded(null);
+    // The two actions share one field, so each clears the other's feedback —
+    // otherwise a failed search stays on screen under a successful add.
+    setDiscoverError(null);
+    try {
+      const episode = await fetchYouTubeEpisode(url);
+      addEpisode(episode);
+      setYoutubeAdded(episode);
+      setDiscoverQuery("");
+    } catch (err) {
+      setYoutubeError(err instanceof Error ? err.message : "Couldn't add that YouTube video.");
+    } finally {
+      setYoutubeLoading(false);
+    }
+  };
+
   const runDiscoverSearch = async () => {
     const term = discoverQuery.trim();
     if (!term) return;
     setDiscoverLoading(true);
     setDiscoverError(null);
+    setYoutubeError(null);
+    setYoutubeAdded(null);
     try {
       const results = await searchPodcastEpisodes(term);
       setDiscoverResults(results);
@@ -216,17 +245,9 @@ export function Library() {
         </button>
       </div>
 
-      <div className="px-5 md:px-0">
-        <SearchBar value={search} onChange={setSearch} />
-      </div>
-
-      <div className="mt-3 flex max-w-full flex-nowrap gap-2 overflow-x-auto px-5 pb-1 no-scrollbar md:flex-wrap md:overflow-visible md:px-0">
-        {allTags.map((tag) => (
-          <TagChip key={tag} label={tag} active={activeTags.includes(tag)} onClick={() => toggleTag(tag)} />
-        ))}
-      </div>
-
-      <div className="mt-3">
+      {/* Tabs lead, because the search and tag filters below them are scoped to
+          whichever tab is selected. */}
+      <div>
         <SegmentedTabSwitcher
           tabs={TABS}
           active={tab}
@@ -234,9 +255,35 @@ export function Library() {
             setTab(t);
             closeFolderView();
             setNewFolderOpen(false);
+            // Transient feedback for the last add — it shouldn't be waiting
+            // here when the user comes back to this tab later.
+            setYoutubeAdded(null);
+            setYoutubeError(null);
           }}
         />
       </div>
+
+      {/* Those filters apply to your own episodes and notes, so on Discover
+          (which searches elsewhere) they'd be dead controls sitting above a
+          second search field. */}
+      {tab !== "discover" && (
+        <>
+          <div className="mt-3 px-5 md:px-0">
+            <SearchBar value={search} onChange={setSearch} />
+          </div>
+
+          <div className="mt-3 flex max-w-full flex-nowrap gap-2 overflow-x-auto px-5 pb-1 no-scrollbar md:flex-wrap md:overflow-visible md:px-0">
+            {allTags.map((tag) => (
+              <TagChip
+                key={tag}
+                label={tag}
+                active={activeTags.includes(tag)}
+                onClick={() => toggleTag(tag)}
+              />
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="mt-4 space-y-2.5 px-5 md:px-0">
         {tab === "episodes" &&
@@ -423,10 +470,14 @@ export function Library() {
 
       {tab === "discover" && (
         <div className="mt-1 px-5 md:px-0">
+          {/* One field for both ways in: a pasted link is added, anything else
+              is searched. The icon and button label switch as you type, so the
+              field says which of the two it's about to do. */}
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              runDiscoverSearch();
+              if (pastedYoutubeLink) addYoutubeVideo();
+              else runDiscoverSearch();
             }}
             className="flex gap-2"
           >
@@ -434,17 +485,32 @@ export function Library() {
               <SearchBar
                 value={discoverQuery}
                 onChange={setDiscoverQuery}
-                placeholder="Search real podcasts & episodes..."
+                placeholder="Search podcasts, or paste a YouTube link..."
+                icon={pastedYoutubeLink ? "🔗" : "🔍"}
               />
             </div>
             <button
               type="submit"
-              disabled={discoverLoading || !discoverQuery.trim()}
+              disabled={youtubeLoading || discoverLoading || !discoverQuery.trim()}
               className="shrink-0 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent/90 disabled:opacity-50"
             >
-              {discoverLoading ? "Searching…" : "Search"}
+              {youtubeLoading
+                ? "Adding…"
+                : discoverLoading
+                  ? "Searching…"
+                  : pastedYoutubeLink
+                    ? "Add"
+                    : "Search"}
             </button>
           </form>
+
+          {youtubeError && <p className="mt-3 text-sm text-text-secondary">{youtubeError}</p>}
+
+          {youtubeAdded && (
+            <div className="mt-3">
+              <DiscoverResultCard episode={youtubeAdded} added onAdd={() => {}} />
+            </div>
+          )}
 
           {discoverError && (
             <p className="mt-3 text-sm text-text-secondary">{discoverError}</p>
@@ -487,7 +553,8 @@ export function Library() {
 
           {!discoverSearched && !discoverLoading && (
             <p className="mt-6 text-center text-sm text-text-tertiary">
-              Search real podcasts via iTunes — added episodes play with real audio.
+              Search real podcasts via iTunes — added episodes play with real audio. Or paste a
+              YouTube link to save a video for notes and AI summary.
             </p>
           )}
         </div>

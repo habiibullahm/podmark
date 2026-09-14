@@ -6,6 +6,10 @@ import type { Episode, EpisodeStatus, NoteBlock } from "../data/types";
  * should actually see from real progress instead of trusting the static field.
  */
 export function getEffectiveStatus(episode: Episode, progressSec: number): EpisodeStatus {
+  // A duration of 0 means "unknown", not "zero-length" — YouTube exposes none,
+  // and iTunes results can omit one too. It can't tell us whether the episode
+  // is finished (0 >= 0 would say yes), but real progress still means started.
+  if (episode.durationSec <= 0) return progressSec > 0 ? "in-progress" : episode.status;
   if (progressSec >= episode.durationSec) return "finished";
   if (progressSec > 0) return "in-progress";
   return episode.status;

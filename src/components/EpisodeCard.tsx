@@ -64,14 +64,18 @@ export function EpisodeCard({ episode, variant = "list" }: EpisodeCardProps) {
               ✓ Completed
             </span>
           ) : (
-            <>
-              <div className="h-1 w-20 shrink-0 overflow-hidden rounded-full bg-bg-surface-alt">
-                <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
-              </div>
-              <span className="shrink-0 text-[11px] text-text-tertiary">
-                {formatTime(episode.durationSec - progressSec)} left
-              </span>
-            </>
+            // With an unknown duration there's no meaningful bar to fill or
+            // time to count down — showing either would invent progress.
+            episode.durationSec > 0 && (
+              <>
+                <div className="h-1 w-20 shrink-0 overflow-hidden rounded-full bg-bg-surface-alt">
+                  <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
+                </div>
+                <span className="shrink-0 text-[11px] text-text-tertiary">
+                  {formatTime(episode.durationSec - progressSec)} left
+                </span>
+              </>
+            )
           )}
           <div className="flex flex-wrap gap-1">
             {episode.tags.slice(0, 2).map((t) => (
