@@ -11,6 +11,7 @@ import { Library } from "./screens/Library";
 import { EpisodeDetail } from "./screens/EpisodeDetail";
 import { Insights } from "./screens/Insights";
 import { Profile } from "./screens/Profile";
+import { NotFound } from "./screens/NotFound";
 
 function App() {
   const collapsed = useUIStore((s) => s.sidebarCollapsed);
@@ -31,6 +32,7 @@ function App() {
               <Route path="/episode/:id" element={<EpisodeDetail />} />
               <Route path="/insights" element={<Insights />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="*" element={<NotFound />} />
             </Routes>
           </div>
         </div>

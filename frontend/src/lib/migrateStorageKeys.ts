@@ -4,6 +4,8 @@ const KEY_MIGRATIONS = [
   ["podbrain-episodes", "podmark-episodes"],
   ["podbrain-settings", "podmark-settings"],
   ["podbrain-progress", "podmark-progress"],
+  ["podbrain-folders", "podmark-folders"],
+  ["podbrain-activity", "podmark-activity"],
 ] as const;
 
 // One-time carry-over from the PodBrain -> PodMark rename: without this,

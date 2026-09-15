@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useEpisodesStore } from "../store/useEpisodesStore";
 import { useFoldersStore } from "../store/useFoldersStore";
 import { usePlayer } from "../context/PlayerContext";
@@ -12,20 +12,25 @@ import { MarkdownNoteEditor } from "../components/MarkdownNoteEditor";
 import { TimestampNoteBlock } from "../components/TimestampNoteBlock";
 import { HighlightBlock } from "../components/HighlightBlock";
 import { formatTime } from "../lib/format";
+import { useAuthStore } from "../store/useAuthStore";
+import { isSupabaseConfigured } from "../lib/supabase";
 
 const DEFAULT_FREEFORM_NOTES = "- Key theme this episode revolves around...\n- ";
 
 export function EpisodeDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const episodes = useEpisodesStore((s) => s.episodes);
   const episode = episodes.find((e) => e.id === id);
 
-  const { episode: playerEpisode, positionSec, openEpisode, getProgressFor } = usePlayer();
+  const { episode: playerEpisode, positionSec, openEpisode, getProgressFor, clearEpisode, togglePlay, audioError } =
+    usePlayer();
   const allNotes = useNotesStore((s) => s.notes);
   const notes = useMemo(() => filterNotesByEpisode(allNotes, id ?? ""), [allNotes, id]);
   const addNote = useNotesStore((s) => s.addNote);
   const generateSummary = useNotesStore((s) => s.generateSummary);
+  const clearSummary = useNotesStore((s) => s.clearSummary);
   const aiSummary = useNotesStore((s) => (id ? s.aiSummaries[id] : undefined));
   const aiSummaryError = useNotesStore((s) => (id ? s.aiSummaryErrors[id] : undefined));
   const storedFreeformNotes = useNotesStore((s) => (id ? s.freeformNotes[id] : undefined));
@@ -33,6 +38,8 @@ export function EpisodeDetail() {
   const folders = useFoldersStore((s) => s.folders);
   const addEpisodeToFolder = useFoldersStore((s) => s.addEpisodeToFolder);
   const removeEpisodeFromFolder = useFoldersStore((s) => s.removeEpisodeFromFolder);
+  const removeEpisode = useEpisodesStore((s) => s.removeEpisode);
+  const authStatus = useAuthStore((s) => s.status);
 
   const freeformNotes = storedFreeformNotes ?? DEFAULT_FREEFORM_NOTES;
   const setFreeformNotes = (update: string | ((prev: string) => string)) => {
@@ -46,6 +53,7 @@ export function EpisodeDetail() {
   const [draftTag, setDraftTag] = useState(episode?.tags[0] ?? "");
   const [generating, setGenerating] = useState(false);
   const [folderMenuOpen, setFolderMenuOpen] = useState(false);
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
   const folderMenuRef = useRef<HTMLDivElement>(null);
   const notesEditorRef = useRef<HTMLDivElement>(null);
 
@@ -73,6 +81,7 @@ export function EpisodeDetail() {
     setDraftTag(episode?.tags[0] ?? "");
     setGenerating(false);
     setFolderMenuOpen(false);
+    setConfirmingRemove(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -83,6 +92,13 @@ export function EpisodeDetail() {
     if (episode && !episode.sourceUrl) openEpisode(episode);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [episode?.id]);
+
+  // "Jump to Notes" (Dashboard's Currently Learning widget) links here with
+  // a #notes hash — scroll it into view once the screen has rendered.
+  useEffect(() => {
+    if (location.hash !== "#notes") return;
+    document.getElementById("notes")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [location.hash, id]);
 
   // Prefer the live context position when this episode is the one actually
   // loaded in the player; otherwise fall back to the last saved progress
@@ -127,11 +143,23 @@ export function EpisodeDetail() {
     setGenerating(false);
   };
 
+  const handleRemoveEpisode = () => {
+    if (playerEpisode?.id === episode.id) clearEpisode();
+    removeEpisode(episode.id);
+    navigate("/library");
+  };
+
   // There's no legitimate way to get a YouTube video's content — captions are
   // gated and the audio can't be fetched — so a summary would be the model
   // guessing from a title. Rather than offer a button that can't deliver,
   // YouTube episodes are notes-only.
   const canSummarize = !episode.sourceUrl;
+  // Summaries spend Groq credits, so once accounts exist they're gated
+  // behind sign-in. Deployments without Supabase configured (isSupabaseConfigured
+  // false — no env vars set) predate accounts entirely, so summarizing stays
+  // open there rather than showing a sign-in prompt for a feature that isn't
+  // wired up yet.
+  const summarizeRequiresSignIn = isSupabaseConfigured && authStatus !== "signedIn";
 
   return (
     <div className="pb-40 md:pb-16">
@@ -176,10 +204,46 @@ export function EpisodeDetail() {
                   </button>
                 );
               })}
+              <div className="my-1 border-t border-border" />
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmingRemove(true);
+                  setFolderMenuOpen(false);
+                }}
+                className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-sm text-red-400 hover:bg-bg-surface-alt"
+              >
+                Remove from Library
+              </button>
             </div>
           )}
         </div>
       </div>
+
+      {confirmingRemove && (
+        <div className="mx-5 mt-3 flex items-center justify-between gap-3 rounded-xl border border-red-500/40 bg-red-500/10 p-3 md:mx-0">
+          <p className="text-[13px] text-text-primary">
+            Remove "{episode.title}" and its {notes.length} note{notes.length === 1 ? "" : "s"}? This
+            can't be undone.
+          </p>
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirmingRemove(false)}
+              className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-text-secondary"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleRemoveEpisode}
+              className="rounded-lg bg-red-500 px-3 py-1.5 text-xs font-semibold text-white"
+            >
+              Remove
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="px-5 pt-4 md:px-0 md:pt-6">
         <div className="flex items-center gap-3">
@@ -199,6 +263,29 @@ export function EpisodeDetail() {
           ))}
         </div>
       </div>
+
+      {audioError && playerEpisode?.id === episode.id && episode.audioUrl && (
+        <div className="mx-5 mt-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-surface p-3 md:mx-0">
+          <p className="text-[13px] text-text-secondary">This episode's audio couldn't be loaded.</p>
+          <div className="flex shrink-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={togglePlay}
+              className="rounded-lg bg-bg-surface-alt px-3 py-1.5 text-xs font-medium text-text-primary hover:text-accent"
+            >
+              Try again
+            </button>
+            <a
+              href={episode.audioUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-medium text-accent hover:text-accent/80"
+            >
+              Open source ↗
+            </a>
+          </div>
+        </div>
+      )}
 
       <div
         id="notes"
@@ -240,7 +327,16 @@ export function EpisodeDetail() {
         >
           ⭐ + Save Key Highlight
         </button>
-        {canSummarize && (
+        {canSummarize && summarizeRequiresSignIn && (
+          <button
+            type="button"
+            onClick={() => navigate("/profile")}
+            className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-bg-surface px-3.5 py-2 text-xs font-semibold text-text-secondary hover:border-accent/60 hover:text-accent"
+          >
+            ✨ Sign in to use AI summary
+          </button>
+        )}
+        {canSummarize && !summarizeRequiresSignIn && (
           <button
             type="button"
             onClick={handleSummarize}
@@ -304,9 +400,12 @@ export function EpisodeDetail() {
         </div>
       )}
 
-      {canSummarize && aiSummaryError && !aiSummary && (
+      {canSummarize && aiSummaryError && (
         <div className="mx-5 mt-4 flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-surface p-3 md:mx-0">
-          <p className="text-[13px] text-text-secondary">✨ {aiSummaryError}</p>
+          <p className="text-[13px] text-text-secondary">
+            ✨ {aiSummaryError}
+            {aiSummary && " The summary below is from before this attempt."}
+          </p>
           <button
             type="button"
             onClick={handleSummarize}
@@ -323,6 +422,7 @@ export function EpisodeDetail() {
           <AISummaryCard
             bullets={aiSummary}
             onRegenerate={handleSummarize}
+            onClear={() => clearSummary(episode.id)}
             onInsert={(bullet) => {
               setFreeformNotes((prev) => `${prev}\n- ${bullet}`);
               // Without this, an inserted bullet lands past the bottom of the
@@ -350,9 +450,9 @@ export function EpisodeDetail() {
         <div className="mx-5 mt-4 space-y-2.5 md:mx-0">
           {sortedNotes.map((note) =>
             note.type === "highlight" ? (
-              <HighlightBlock key={note.id} note={note} />
+              <HighlightBlock key={note.id} note={note} episodeTags={episode.tags} />
             ) : (
-              <TimestampNoteBlock key={note.id} note={note} />
+              <TimestampNoteBlock key={note.id} note={note} episodeTags={episode.tags} />
             ),
           )}
         </div>

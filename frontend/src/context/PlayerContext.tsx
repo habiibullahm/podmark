@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useEpisodesStore } from "../store/useEpisodesStore";
 import { useActivityStore } from "../store/useActivityStore";
+import { useProgressStore } from "../store/useProgressStore";
 import type { Episode } from "../data/types";
 
 interface PlayerContextValue {
@@ -26,41 +27,16 @@ interface PlayerContextValue {
   setExpanded: (expanded: boolean) => void;
   cycleSpeed: () => void;
   getProgressFor: (episodeId: string) => number;
+  clearEpisode: () => void;
+  audioError: boolean;
 }
 
 const SPEEDS = [1, 1.2, 1.5, 2];
-const PROGRESS_STORAGE_KEY = "podmark-progress";
 const PERSIST_EVERY_N_TICKS = 5;
 // Caps a single tick's contribution to listened-minutes tracking, so a long
 // gap between ticks (e.g. the tab was backgrounded or the laptop slept while
 // still "playing") can't be misread as that much real listening time.
 const MAX_TICK_GAP_MS = 5_000;
-
-function loadStoredProgress(): Record<string, number> {
-  try {
-    const raw = localStorage.getItem(PROGRESS_STORAGE_KEY);
-    if (!raw) return {};
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null) return {};
-    const result: Record<string, number> = {};
-    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-      if (typeof value === "number" && Number.isFinite(value)) {
-        result[key] = value;
-      }
-    }
-    return result;
-  } catch {
-    return {};
-  }
-}
-
-function saveStoredProgress(progress: Record<string, number>) {
-  try {
-    localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(progress));
-  } catch {
-    // ignore write failures (e.g. private browsing storage limits)
-  }
-}
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
 
@@ -71,6 +47,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [speedIndex, setSpeedIndex] = useState(0);
   const [seekFlashSec, setSeekFlashSec] = useState<number | null>(null);
+  const [audioError, setAudioError] = useState(false);
 
   const isRealAudio = !!episode?.audioUrl;
 
@@ -84,17 +61,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }
   const pendingSeek = useRef<number | null>(null);
 
-  // Lazy-init without re-reading localStorage on every render (useRef has no
-  // lazy-initializer form, so a plain useRef(loadStoredProgress()) would
-  // re-invoke loadStoredProgress() on every render even though only the
-  // first result is ever kept).
-  const overrideProgress = useRef<Record<string, number>>({});
-  const progressLoaded = useRef(false);
-  if (!progressLoaded.current) {
-    overrideProgress.current = loadStoredProgress();
-    progressLoaded.current = true;
-  }
-
   const seekFlashTimeout = useRef<number | null>(null);
   const tickCount = useRef(0);
   // Wall-clock timestamp of the last tick while playing, so activity logging
@@ -103,13 +69,23 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // playback stops so the paused gap is never counted as listened time.
   const lastPlayingTickAt = useRef<number | null>(null);
 
-  // Single owner of "write progress, and decide whether to flush it to
-  // localStorage now" — every code path that changes position (ticking,
-  // seeking) goes through this instead of duplicating the write.
+  // Tracks the latest episode/position outside of throttling, so the
+  // visibilitychange/pagehide flush below can always persist whatever's
+  // actually on screen even between throttled writes.
+  const latestPosition = useRef<{ episodeId: string | null; position: number }>({
+    episodeId: null,
+    position: 0,
+  });
+
+  // Single owner of "write progress, and decide whether to flush it to the
+  // progress store now" — every code path that changes position (ticking,
+  // seeking) goes through this instead of duplicating the write. The store
+  // itself persists to localStorage on every write, so throttling here is
+  // purely to avoid writing on every tick while playing.
   const persistProgress = useCallback((episodeId: string, position: number, immediate: boolean) => {
-    overrideProgress.current[episodeId] = position;
+    latestPosition.current = { episodeId, position };
     if (immediate) {
-      saveStoredProgress(overrideProgress.current);
+      useProgressStore.getState().setProgress(episodeId, position);
     }
   }, []);
 
@@ -120,6 +96,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const audio = audioElRef.current;
     if (!audio) return;
+
+    setAudioError(false);
 
     if (!episode?.audioUrl) {
       audio.pause();
@@ -135,11 +113,22 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         pendingSeek.current = null;
       }
       if (isPlaying) {
-        audio.play().catch(() => setIsPlaying(false));
+        audio.play().catch(() => {
+          setIsPlaying(false);
+          setAudioError(true);
+        });
       }
     };
+    const onError = () => {
+      setIsPlaying(false);
+      setAudioError(true);
+    };
     audio.addEventListener("loadedmetadata", onLoaded, { once: true });
-    return () => audio.removeEventListener("loadedmetadata", onLoaded);
+    audio.addEventListener("error", onError);
+    return () => {
+      audio.removeEventListener("loadedmetadata", onLoaded);
+      audio.removeEventListener("error", onError);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [episode?.id, episode?.audioUrl]);
 
@@ -167,7 +156,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (!audio || !isRealAudio) return;
     audio.playbackRate = SPEEDS[speedIndex];
     if (isPlaying) {
-      audio.play().catch(() => setIsPlaying(false));
+      audio.play().catch(() => {
+        setIsPlaying(false);
+        setAudioError(true);
+      });
     } else {
       audio.pause();
     }
@@ -211,7 +203,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // is hidden or closed, so at most one throttle window's progress is ever
   // at risk instead of it being lost until the next multiple-of-N tick.
   useEffect(() => {
-    const flush = () => saveStoredProgress(overrideProgress.current);
+    const flush = () => {
+      const { episodeId, position } = latestPosition.current;
+      if (episodeId) useProgressStore.getState().setProgress(episodeId, position);
+    };
     const onVisibilityChange = () => {
       if (document.visibilityState === "hidden") flush();
     };
@@ -226,7 +221,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const playEpisode = useCallback(
     (ep: Episode) => {
       if (episode?.id !== ep.id) {
-        const startAt = overrideProgress.current[ep.id] ?? ep.progressSec;
+        const startAt = useProgressStore.getState().progressByEpisode[ep.id] ?? ep.progressSec;
         pendingSeek.current = startAt;
         setPositionSec(startAt);
       }
@@ -240,7 +235,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     (ep: Episode) => {
       if (episode?.id === ep.id) return;
       setEpisode(ep);
-      const startAt = overrideProgress.current[ep.id] ?? ep.progressSec;
+      const startAt = useProgressStore.getState().progressByEpisode[ep.id] ?? ep.progressSec;
       pendingSeek.current = startAt;
       setPositionSec(startAt);
       setIsPlaying(false);
@@ -248,9 +243,21 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     [episode],
   );
 
+  // Clears whatever's loaded in the player — used when the mini player is
+  // dismissed, and when the loaded episode is removed from the library.
+  const clearEpisode = useCallback(() => {
+    setEpisode(null);
+    setIsPlaying(false);
+    setPositionSec(0);
+    pendingSeek.current = null;
+  }, []);
+
   const togglePlay = useCallback(() => {
     if (!episode) return;
-    setIsPlaying((p) => !p);
+    setIsPlaying((p) => {
+      if (!p) setAudioError(false);
+      return !p;
+    });
   }, [episode]);
 
   const seek = useCallback(
@@ -294,7 +301,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     (episodeId: string) => {
       if (episode?.id === episodeId) return positionSec;
       const ep = useEpisodesStore.getState().episodes.find((e) => e.id === episodeId);
-      return overrideProgress.current[episodeId] ?? ep?.progressSec ?? 0;
+      return useProgressStore.getState().progressByEpisode[episodeId] ?? ep?.progressSec ?? 0;
     },
     [episode, positionSec],
   );
@@ -316,6 +323,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         setExpanded: setIsExpanded,
         cycleSpeed,
         getProgressFor,
+        clearEpisode,
+        audioError,
       }}
     >
       {children}

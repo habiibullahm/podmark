@@ -269,10 +269,10 @@ export function Library() {
         />
       </div>
 
-      {/* Those filters apply to your own episodes and notes, so on Discover
-          (which searches elsewhere) they'd be dead controls sitting above a
-          second search field. */}
-      {tab !== "discover" && (
+      {/* These filters apply to episodes and takeaways. On Discover (which
+          searches elsewhere) and Folders (which filters nothing there) they'd
+          be dead controls. */}
+      {(tab === "episodes" || tab === "takeaways") && (
         <>
           <div className="mt-3 px-5 md:px-0">
             <SearchBar value={search} onChange={setSearch} />
@@ -295,6 +295,13 @@ export function Library() {
         {tab === "episodes" &&
           (visibleEpisodes.length > 0 ? (
             visibleEpisodes.map((ep) => <EpisodeCard key={ep.id} episode={ep} />)
+          ) : episodes.length === 0 ? (
+            <EmptyState
+              icon="🎧"
+              text="Your library is empty — find a real episode to get started."
+              actionLabel="Find your first episode"
+              onAction={() => setTab("discover")}
+            />
           ) : (
             <EmptyState icon="🎧" text="No episodes match your search — try a different term or clear the tag filters." />
           ))}

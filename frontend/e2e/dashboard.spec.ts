@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { getGreeting } from "../src/lib/format";
 
 test.describe("Dashboard", () => {
   test("renders core widgets", async ({ page }) => {
@@ -15,7 +16,7 @@ test.describe("Dashboard", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
 
-    await expect(page.getByText("Good morning")).toBeVisible();
+    await expect(page.getByText(getGreeting())).toBeVisible();
   });
 
   test("Resume Listening navigates to episode detail and starts playback", async ({ page }) => {

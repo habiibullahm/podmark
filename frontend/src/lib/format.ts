@@ -13,3 +13,9 @@ export function clampPercent(current: number, total: number): number {
   if (!total) return 0;
   return Math.min(100, Math.round((current / total) * 100));
 }
+
+export function getGreeting(hour: number = new Date().getHours()): string {
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}

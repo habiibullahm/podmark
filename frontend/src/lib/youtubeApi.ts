@@ -41,5 +41,6 @@ export async function fetchYouTubeEpisode(url: string): Promise<Episode> {
     tags: ["youtube"],
     publishedAt: "",
     sourceUrl: url,
+    updatedAt: new Date().toISOString(),
   };
 }

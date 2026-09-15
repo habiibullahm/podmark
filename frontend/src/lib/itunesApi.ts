@@ -41,6 +41,7 @@ function toEpisode(result: ItunesEpisodeResult): Episode | null {
     publishedAt: result.releaseDate ? result.releaseDate.slice(0, 10) : "",
     audioUrl,
     description: result.description,
+    updatedAt: new Date().toISOString(),
   };
 }
 

@@ -3,10 +3,20 @@
 // the actual work is in backend/.
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { summarize } from "../backend/src/summarize.js";
+import { verifyUser } from "../backend/src/auth.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed." });
+    return;
+  }
+
+  // Summaries spend Groq credits per call, so this endpoint requires a
+  // verified Supabase session — anyone on the public URL could otherwise
+  // exhaust the account's credits with no rate limit.
+  const userId = await verifyUser(req.headers.authorization, process.env);
+  if (!userId) {
+    res.status(401).json({ error: "Sign in to use AI summary." });
     return;
   }
 
