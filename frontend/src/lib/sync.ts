@@ -31,8 +31,9 @@ import { useFoldersStore } from "../store/useFoldersStore";
 import { useSettingsStore } from "../store/useSettingsStore";
 import { useActivityStore } from "../store/useActivityStore";
 import { useProgressStore } from "../store/useProgressStore";
+import { useTranscriptStore } from "../store/useTranscriptStore";
 import { useSyncStore } from "../store/useSyncStore";
-import type { Episode, NoteBlock, Folder } from "../data/types";
+import type { Episode, NoteBlock, Folder, TranscriptSegment } from "../data/types";
 import type { ExportFormat } from "../store/useSettingsStore";
 
 type Row = Record<string, unknown>;
@@ -46,6 +47,7 @@ const TABLES = [
   "settings",
   "activity",
   "progress",
+  "transcripts",
 ] as const;
 type TableName = (typeof TABLES)[number];
 
@@ -541,6 +543,49 @@ async function pullProgress(isFirstMerge: boolean) {
   }
 }
 
+async function pushTranscripts() {
+  if (!supabase) return;
+  const keys = Array.from(dirty.transcripts);
+  if (keys.length === 0) return;
+  const map = useTranscriptStore.getState().transcripts;
+  const rows = keys.map((episodeId) =>
+    episodeId in map
+      ? { episode_id: episodeId, segments: map[episodeId], deleted_at: null }
+      : { episode_id: episodeId, segments: [], deleted_at: new Date().toISOString() },
+  );
+  const { error } = await supabase.from("transcripts").upsert(rows, { onConflict: "user_id,episode_id" });
+  if (error) throw error;
+  for (const id of keys) clearDirty("transcripts", id);
+}
+
+async function pullTranscripts(isFirstMerge: boolean) {
+  if (!supabase) return;
+  const { data, error } = await supabase.from("transcripts").select("*");
+  if (error) throw error;
+  applyingRemote = true;
+  try {
+    useTranscriptStore.setState((state) => {
+      const local = { ...state.transcripts };
+      for (const row of (data ?? []) as Row[]) {
+        const episodeId = row.episode_id as string;
+        if (dirty.transcripts.has(episodeId)) continue;
+        if (row.deleted_at) delete local[episodeId];
+        else local[episodeId] = row.segments as TranscriptSegment[];
+      }
+      if (isFirstMerge) {
+        for (const episodeId of Object.keys(local)) {
+          if (!(data ?? []).some((r) => (r as Row).episode_id === episodeId)) {
+            markDirty("transcripts", episodeId);
+          }
+        }
+      }
+      return { transcripts: local };
+    });
+  } finally {
+    applyingRemote = false;
+  }
+}
+
 // ---- ai_summaries: two local maps (bullets + error) share one table ----
 
 async function pushAiSummaries() {
@@ -649,6 +694,7 @@ async function pullAll(isFirstMerge: boolean) {
     pullSettings(),
     pullActivity(isFirstMerge),
     pullProgress(isFirstMerge),
+    pullTranscripts(isFirstMerge),
   ]);
 }
 
@@ -662,6 +708,7 @@ async function flushAllDirty() {
     pushSettings(),
     pushActivity(),
     pushProgress(),
+    pushTranscripts(),
   ]);
 }
 
@@ -759,6 +806,14 @@ function attachSubscriptions() {
       const keys = new Set([...Object.keys(state.progressByEpisode), ...Object.keys(prev.progressByEpisode)]);
       for (const k of keys) if (state.progressByEpisode[k] !== prev.progressByEpisode[k]) markDirty("progress", k);
       schedulePush("progress", pushProgress);
+    }),
+  );
+  unsubscribers.push(
+    useTranscriptStore.subscribe((state, prev) => {
+      if (applyingRemote || state.transcripts === prev.transcripts) return;
+      const keys = new Set([...Object.keys(state.transcripts), ...Object.keys(prev.transcripts)]);
+      for (const k of keys) if (state.transcripts[k] !== prev.transcripts[k]) markDirty("transcripts", k);
+      schedulePush("transcripts", pushTranscripts);
     }),
   );
 }

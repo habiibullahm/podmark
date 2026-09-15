@@ -6,6 +6,7 @@ export interface SummarizeInput {
   title?: unknown;
   show?: unknown;
   description?: unknown;
+  transcript?: unknown;
 }
 
 export interface SummarizeEnv {
@@ -32,7 +33,12 @@ const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
 
 const SYSTEM_PROMPT =
-  'You summarize podcast episodes into concise, insight-dense bullet points for someone deciding what to listen to and take notes on. Output ONLY 3-5 bullet points, one per line, each starting with "- ". No preamble, no headers, no closing remarks.';
+  'You summarize podcast episodes into concise, insight-dense bullet points for someone deciding what to listen to and take notes on. When given a transcript, summarize what was actually said, not what you assume a show with this title covers. Output ONLY 3-5 bullet points, one per line, each starting with "- ". No preamble, no headers, no closing remarks.';
+
+// Bounds cost/latency on an unusually long episode. ~60k characters covers a
+// full hour of typical podcast speech; beyond that the opening portion is
+// still enough to ground a useful summary.
+const MAX_TRANSCRIPT_CHARS = 60_000;
 
 export async function summarize(
   input: SummarizeInput,
@@ -48,10 +54,20 @@ export async function summarize(
   const title = typeof input?.title === "string" ? input.title.trim() : "";
   const show = typeof input?.show === "string" ? input.show.trim() : "";
   const description = typeof input?.description === "string" ? input.description.trim() : "";
+  const transcript = typeof input?.transcript === "string" ? input.transcript.trim() : "";
 
   if (!title) {
     return { status: 400, body: { error: "Missing episode title." } };
   }
+
+  // A transcript of what was actually said outranks show notes, which are
+  // written by the publisher and often don't reflect the episode itself.
+  const groundingContent = transcript
+    ? `Transcript of what was actually said:\n${transcript.slice(0, MAX_TRANSCRIPT_CHARS)}`
+    : `Show notes / description:\n${
+        description ||
+        "(no description available — infer likely content from the title and show name only, and keep the bullets appropriately general)"
+      }`;
 
   try {
     const groqRes = await fetch(GROQ_URL, {
@@ -67,9 +83,7 @@ export async function summarize(
           { role: "system", content: SYSTEM_PROMPT },
           {
             role: "user",
-            content: `Episode: "${title}"\nShow: ${show || "Unknown show"}\n\nShow notes / description:\n${
-              description || "(no description available — infer likely content from the title and show name only, and keep the bullets appropriately general)"
-            }`,
+            content: `Episode: "${title}"\nShow: ${show || "Unknown show"}\n\n${groundingContent}`,
           },
         ],
       }),

@@ -18,7 +18,7 @@ interface NotesState {
   ) => void;
   updateNote: (id: string, update: { text: string; tags: string[] }) => void;
   removeNote: (id: string) => void;
-  generateSummary: (episode: Episode) => Promise<void>;
+  generateSummary: (episode: Episode, transcript?: string) => Promise<void>;
   clearSummary: (episodeId: string) => void;
   removeForEpisode: (episodeId: string) => void;
   setFreeformNotes: (episodeId: string, text: string) => void;
@@ -65,7 +65,7 @@ export const useNotesStore = create<NotesState>()(
         })),
       removeNote: (id) =>
         set((state) => ({ notes: state.notes.filter((n) => n.id !== id) })),
-      generateSummary: async (episode) => {
+      generateSummary: async (episode, transcript) => {
         set((state) => {
           const aiSummaryErrors = { ...state.aiSummaryErrors };
           delete aiSummaryErrors[episode.id];
@@ -84,6 +84,7 @@ export const useNotesStore = create<NotesState>()(
               title: episode.title,
               show: episode.show,
               description: episode.description,
+              transcript,
             }),
           });
           const data = await res.json();

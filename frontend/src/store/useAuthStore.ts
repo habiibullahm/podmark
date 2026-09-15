@@ -7,6 +7,7 @@ import { useFoldersStore } from "./useFoldersStore";
 import { useSettingsStore } from "./useSettingsStore";
 import { useActivityStore } from "./useActivityStore";
 import { useProgressStore } from "./useProgressStore";
+import { useTranscriptStore } from "./useTranscriptStore";
 import { startSync, stopSync } from "../lib/sync";
 
 export type AuthStatus = "loading" | "signedOut" | "signedIn";
@@ -29,6 +30,7 @@ function resetAllDataStores() {
   useSettingsStore.setState({ dailyGoalTarget: 30, notificationsEnabled: true, exportFormat: "obsidian" });
   useActivityStore.setState({ minutesByDate: {} });
   useProgressStore.setState({ progressByEpisode: {} });
+  useTranscriptStore.setState({ transcripts: {}, transcribing: {}, transcribeErrors: {} });
 }
 
 export const useAuthStore = create<AuthState>()(() => ({
