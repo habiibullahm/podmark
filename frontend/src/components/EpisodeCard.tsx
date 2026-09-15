@@ -38,9 +38,11 @@ export function EpisodeCard({ episode, variant = "list" }: EpisodeCardProps) {
             <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
           </div>
         </div>
-        <span className="shrink-0 text-xs text-text-tertiary">
-          {formatTime(episode.durationSec - progressSec)} left
-        </span>
+        {episode.durationSec > 0 && (
+          <span className="shrink-0 text-xs text-text-tertiary">
+            {formatTime(episode.durationSec - progressSec)} left
+          </span>
+        )}
       </button>
     );
   }

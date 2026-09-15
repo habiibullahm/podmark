@@ -20,5 +20,11 @@ export default defineConfig({
     url: "http://localhost:5173",
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,
+    // The suite's baseline guarantee is that the app works fully signed-out
+    // with no Supabase project configured — that's what keeps every non-auth
+    // spec valid regardless of accounts. Force that here so a developer's own
+    // frontend/.env.local (set up for manual `vercel dev` testing) can't
+    // silently make this run exercise a different, non-hermetic code path.
+    env: { VITE_SUPABASE_URL: "", VITE_SUPABASE_ANON_KEY: "" },
   },
 });

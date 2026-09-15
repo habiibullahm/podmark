@@ -1,18 +1,23 @@
+import { useAuthStore } from "../store/useAuthStore";
+import { getAvatarLetter, getDisplayName } from "../lib/identity";
+
 interface AppHeaderProps {
   greeting: string;
   streak: number;
 }
 
 export function AppHeader({ greeting, streak }: AppHeaderProps) {
+  const user = useAuthStore((s) => s.user);
+
   return (
     <div className="flex items-center justify-between px-5 pb-4 pt-[calc(env(safe-area-inset-top)+1rem)] md:hidden">
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/15 text-sm font-semibold text-accent">
-          A
+          {getAvatarLetter(user)}
         </div>
         <div>
           <p className="text-[13px] text-text-secondary">{greeting}</p>
-          <p className="text-[17px] font-semibold text-text-primary">Alex</p>
+          <p className="text-[17px] font-semibold text-text-primary">{getDisplayName(user)}</p>
         </div>
       </div>
       <div className="flex items-center gap-3">

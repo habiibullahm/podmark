@@ -14,6 +14,7 @@ export interface Episode {
   audioUrl?: string; // real audio file URL — when present, PlayerContext uses a real <audio> element instead of the simulated timer
   sourceUrl?: string; // external page to watch/listen on, for episodes with no playable audioUrl
   description?: string; // show notes / episode description, used as grounding content for AI summarization
+  updatedAt: string; // ISO timestamp of the last local mutation, for last-write-wins sync
 }
 
 export type NoteBlockType = "timestamp-note" | "highlight";
@@ -26,6 +27,7 @@ export interface NoteBlock {
   text: string;
   tags: string[];
   createdAt: string;
+  updatedAt: string; // ISO timestamp of the last local mutation, for last-write-wins sync
 }
 
 export interface Folder {
@@ -33,6 +35,7 @@ export interface Folder {
   name: string;
   color: string;
   episodeIds: string[];
+  updatedAt: string; // ISO timestamp of the last local mutation, for last-write-wins sync
 }
 
 export interface DailyGoal {

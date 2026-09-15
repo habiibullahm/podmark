@@ -3,7 +3,7 @@ import { clampPercent } from "../lib/format";
 import { EpisodeArtwork } from "./EpisodeArtwork";
 
 export function CompactAudioPlayer() {
-  const { episode, positionSec, isPlaying, togglePlay, skip, speed, cycleSpeed, setExpanded } =
+  const { episode, positionSec, isPlaying, togglePlay, skip, speed, cycleSpeed, setExpanded, clearEpisode } =
     usePlayer();
 
   if (!episode) return null;
@@ -62,6 +62,17 @@ export function CompactAudioPlayer() {
           className="shrink-0 rounded-md bg-bg-surface-alt px-1.5 py-1 text-[11px] font-semibold text-text-secondary"
         >
           {speed}x
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            clearEpisode();
+          }}
+          aria-label="Dismiss"
+          className="shrink-0 rounded-full p-1.5 text-text-tertiary hover:text-text-primary"
+        >
+          ✕
         </button>
       </div>
     </div>

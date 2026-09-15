@@ -2,22 +2,32 @@ interface AISummaryCardProps {
   bullets: string[];
   onRegenerate: () => void;
   onInsert: (bullet: string) => void;
+  onClear: () => void;
 }
 
-export function AISummaryCard({ bullets, onRegenerate, onInsert }: AISummaryCardProps) {
+export function AISummaryCard({ bullets, onRegenerate, onInsert, onClear }: AISummaryCardProps) {
   return (
     <div className="animate-fade-slide-up rounded-xl border border-accent/30 bg-accent/[.06] p-3.5">
       <div className="flex items-center justify-between">
         <p className="flex items-center gap-1.5 text-[13px] font-semibold text-accent">
           ✨ AI Summary
         </p>
-        <button
-          type="button"
-          onClick={onRegenerate}
-          className="text-xs font-medium text-text-secondary hover:text-text-primary"
-        >
-          ↻ Regenerate
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onRegenerate}
+            className="text-xs font-medium text-text-secondary hover:text-text-primary"
+          >
+            ↻ Regenerate
+          </button>
+          <button
+            type="button"
+            onClick={onClear}
+            className="text-xs font-medium text-text-secondary hover:text-red-400"
+          >
+            Clear
+          </button>
+        </div>
       </div>
       <ul className="mt-2.5 space-y-2.5">
         {bullets.map((bullet, i) => (

@@ -36,6 +36,15 @@ npm run lint
 
 `api/summarize.ts` needs `GROQ_API_KEY` (and optionally `GROQ_MODEL`, default `openai/gpt-oss-120b`). For local `vercel dev`, pull it with `vercel env pull .env.local --environment=development` rather than hand-editing the file. YouTube lookup needs no key.
 
+**Accounts (Supabase).** Optional — without these, the app runs fully signed-out on local `localStorage` data, exactly as before, and `/api/summarize` stays open. To enable accounts:
+
+1. Create a Supabase project. Under **Authentication → URL Configuration**, set the Site URL to the deployed origin and add `http://localhost:3001` / `http://localhost:5173` as redirect URLs. Under **Authentication → Providers → Email**, enable email sign-in with "Confirm email" off (the magic link itself is the confirmation).
+2. Run `backend/supabase/migrations/0001_init.sql` against the project (Supabase CLI `supabase db push`, or paste it into the SQL editor).
+3. Set frontend env vars (Vite, public — safe in the browser): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
+4. Set exactly one server env var (Vercel, secret) matching the project's JWT signing algorithm (**Settings → API → JWT**): `SUPABASE_JWT_SECRET` for HS256, or `SUPABASE_URL` for ES256 (its JWKS is derived from the URL). This is what `/api/summarize` uses to verify a session token locally, with no per-request network call.
+
+Never put the Supabase **service-role** key anywhere in this repo or in a `VITE_`-prefixed env var — it belongs only in the Supabase dashboard.
+
 ## Server code conventions
 
 Put logic in `backend/src/`, not in `api/`. A backend function takes a plain input and an `env` object and returns `{ status, body }`; the matching `api/` file only adds the method guard and `res.status().json()`. Relative imports in `api/` and `backend/` use explicit `.js` extensions — the root is `"type": "module"` and Vercel compiles functions with `nodenext` resolution, so the extension is required at runtime. `tsconfig.api.json` and `backend/tsconfig.json` use `nodenext` too, so a local typecheck catches what Vercel's would.

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { usePlayer } from "../context/PlayerContext";
 import { clampPercent, formatTime } from "../lib/format";
 import { EpisodeArtwork } from "./EpisodeArtwork";
@@ -16,13 +17,28 @@ export function FullScreenPlayerModal() {
     setExpanded,
   } = usePlayer();
 
+  useEffect(() => {
+    if (!isExpanded) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setExpanded(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [isExpanded, setExpanded]);
+
   if (!episode || !isExpanded) return null;
 
   const pct = clampPercent(positionSec, episode.durationSec);
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 md:p-6">
-      <div className="flex h-full w-full max-w-[430px] flex-col bg-bg-primary md:h-auto md:max-h-[90vh] md:overflow-y-auto md:rounded-3xl md:border md:border-border md:shadow-2xl">
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 md:p-6"
+      onClick={() => setExpanded(false)}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="flex h-full w-full max-w-[430px] flex-col bg-bg-primary md:h-auto md:max-h-[90vh] md:overflow-y-auto md:rounded-3xl md:border md:border-border md:shadow-2xl"
+      >
         <div className="flex items-center justify-between px-5 pt-[calc(env(safe-area-inset-top)+1rem)] md:pt-6">
           <button
             type="button"

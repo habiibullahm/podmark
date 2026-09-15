@@ -1,10 +1,152 @@
+import { useState } from "react";
 import { useEpisodesStore } from "../store/useEpisodesStore";
 import { useNotesStore } from "../store/useNotesStore";
 import { useSettingsStore } from "../store/useSettingsStore";
 import { useCurrentStreak } from "../store/useActivityStore";
+import { useAuthStore } from "../store/useAuthStore";
+import { useSyncStore } from "../store/useSyncStore";
+import { isSupabaseConfigured } from "../lib/supabase";
+import { getAvatarLetter, getDisplayName } from "../lib/identity";
 import { SectionHeader } from "../components/SectionHeader";
 
 const GOAL_STEP = 5;
+const RESEND_COOLDOWN_SEC = 60;
+
+function SyncIndicator() {
+  const phase = useSyncStore((s) => s.phase);
+  const pendingCount = useSyncStore((s) => s.pendingCount);
+
+  if (phase === "error" && pendingCount > 0) {
+    return (
+      <p className="text-xs text-red-400">
+        {pendingCount} change{pendingCount === 1 ? "" : "s"} waiting — check your connection.
+      </p>
+    );
+  }
+  if (phase === "syncing") {
+    return <p className="text-xs text-text-tertiary">Syncing…</p>;
+  }
+  if (phase === "synced") {
+    return <p className="text-xs text-text-tertiary">Synced just now</p>;
+  }
+  return null;
+}
+
+function AccountSection() {
+  const status = useAuthStore((s) => s.status);
+  const user = useAuthStore((s) => s.user);
+  const signIn = useAuthStore((s) => s.signIn);
+  const signOut = useAuthStore((s) => s.signOut);
+  const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+
+  const startCooldown = () => {
+    setCooldown(RESEND_COOLDOWN_SEC);
+    const interval = setInterval(() => {
+      setCooldown((c) => {
+        if (c <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+  };
+
+  const handleSendLink = async () => {
+    if (!email.trim() || sending || cooldown > 0) return;
+    setSending(true);
+    setError(null);
+    const { error: signInError } = await signIn(email.trim());
+    setSending(false);
+    if (signInError) {
+      setError(signInError);
+      return;
+    }
+    setSent(true);
+    startCooldown();
+  };
+
+  if (!isSupabaseConfigured) {
+    return (
+      <div className="mt-6 mb-2">
+        <SectionHeader title="Account" />
+        <div className="mx-5 rounded-2xl border border-border bg-bg-surface p-4 md:mx-0">
+          <p className="text-[13px] text-text-secondary">
+            Accounts aren't set up for this deployment yet — your library stays on this device only.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === "signedIn") {
+    return (
+      <div className="mt-6 mb-2">
+        <SectionHeader title="Account" />
+        <div className="mx-5 space-y-3 rounded-2xl border border-border bg-bg-surface p-4 md:mx-0">
+          <p className="text-[13px] text-text-secondary">
+            Signed in as <span className="font-medium text-text-primary">{user?.email}</span>
+          </p>
+          <SyncIndicator />
+          <button
+            type="button"
+            onClick={() => signOut()}
+            className="w-full rounded-xl border border-border bg-bg-surface-alt p-3 text-sm font-semibold text-text-primary hover:border-red-400/60 hover:text-red-400"
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-6 mb-2">
+      <SectionHeader title="Account" />
+      <div className="mx-5 space-y-3 rounded-2xl border border-border bg-bg-surface p-4 md:mx-0">
+        {sent ? (
+          <p className="text-[13px] text-text-secondary">
+            Check your email and open the link <span className="font-medium text-text-primary">on this device</span>{" "}
+            — the sign-in link only works in the browser that requested it.
+          </p>
+        ) : (
+          <p className="text-[13px] text-text-secondary">
+            Sign in with a magic link to sync your library across devices.
+          </p>
+        )}
+        <div className="flex gap-2">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSendLink()}
+            placeholder="you@example.com"
+            className="min-w-0 flex-1 rounded-xl border border-border bg-bg-surface-alt px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={handleSendLink}
+            disabled={!email.trim() || sending || cooldown > 0}
+            className="shrink-0 rounded-xl bg-accent px-3.5 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {sending
+              ? "Sending…"
+              : cooldown > 0
+                ? `Resend in ${cooldown}s`
+                : sent
+                  ? "Resend link"
+                  : "Send magic link"}
+          </button>
+        </div>
+        {error && <p className="text-xs text-red-400">{error}</p>}
+      </div>
+    </div>
+  );
+}
 
 export function Profile() {
   const episodesCount = useEpisodesStore((s) => s.episodes.length);
@@ -16,6 +158,7 @@ export function Profile() {
   const toggleNotifications = useSettingsStore((s) => s.toggleNotifications);
   const exportFormat = useSettingsStore((s) => s.exportFormat);
   const setExportFormat = useSettingsStore((s) => s.setExportFormat);
+  const user = useAuthStore((s) => s.user);
 
   return (
     <div className="pb-40 px-5 pt-[calc(env(safe-area-inset-top)+1.25rem)] md:px-0 md:pb-16 md:pt-0">
@@ -23,10 +166,10 @@ export function Profile() {
 
       <div className="flex items-center gap-4 rounded-2xl border border-border bg-bg-surface p-4">
         <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-accent/15 text-xl font-semibold text-accent">
-          A
+          {getAvatarLetter(user)}
         </div>
         <div>
-          <p className="text-[17px] font-semibold text-text-primary">Alex</p>
+          <p className="text-[17px] font-semibold text-text-primary">{getDisplayName(user)}</p>
           <p className="text-xs text-text-secondary">
             🔥 {streak} day{streak === 1 ? "" : "s"} streak · {episodesCount} episodes · {notesCount} notes
           </p>
@@ -112,16 +255,7 @@ export function Profile() {
         </div>
       </div>
 
-      <div className="mt-6 mb-2">
-        <button
-          type="button"
-          disabled
-          title="Sign-in isn't implemented in this prototype yet"
-          className="mx-5 w-[calc(100%-2.5rem)] rounded-2xl border border-border bg-bg-surface p-3.5 text-sm font-semibold text-text-tertiary md:mx-0 md:w-full"
-        >
-          Sign out
-        </button>
-      </div>
+      <AccountSection />
     </div>
   );
 }

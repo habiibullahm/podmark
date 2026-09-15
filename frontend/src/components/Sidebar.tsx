@@ -1,6 +1,8 @@
 import { NavLink } from "react-router-dom";
 import { useUIStore } from "../store/useUIStore";
 import { useCurrentStreak } from "../store/useActivityStore";
+import { useAuthStore } from "../store/useAuthStore";
+import { getAvatarLetter, getDisplayName } from "../lib/identity";
 import { SIDEBAR_WIDTH_CLASS } from "../lib/sidebarLayout";
 
 const NAV = [
@@ -13,6 +15,7 @@ export function Sidebar() {
   const collapsed = useUIStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const streak = useCurrentStreak();
+  const user = useAuthStore((s) => s.user);
 
   return (
     <aside
@@ -99,11 +102,11 @@ export function Sidebar() {
         }
       >
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/15 text-sm font-semibold text-accent">
-          A
+          {getAvatarLetter(user)}
         </div>
         {!collapsed && (
           <div className="min-w-0">
-            <p className="line-clamp-1 text-sm font-medium text-text-primary">Alex</p>
+            <p className="line-clamp-1 text-sm font-medium text-text-primary">{getDisplayName(user)}</p>
             <p className="flex items-center gap-1 text-xs text-text-secondary">
               🔥 {streak} day{streak === 1 ? "" : "s"} streak
             </p>
