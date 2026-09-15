@@ -1,6 +1,8 @@
 # PodMark — Product Requirements
 
-**Version** 1.0 · **Date** 15 Sep 2026 · **Status** Draft for review · **Codebase** `dc06b68` · **Live** podbrain-five.vercel.app
+**Version** 1.1 · **Date** 15 Sep 2026 · **Status** Draft for review · **Codebase** `f7d62d6` · **Live** podbrain-five.vercel.app
+
+*v1.1: backend stack decided (Supabase), Phase 1 detailed as four PRs, API gating added as P0, sync rules recorded.*
 
 A podcast tracker and learning journal. This document reviews the shipped prototype flow by flow, defines the product it should become, and prioritises the gap between the two.
 
@@ -131,6 +133,7 @@ P0 blocks the MVP as defined in §06. P1 is needed for the MVP to feel finished.
 | **P0** | Nothing can be removed | No delete for episodes, notes, highlights or AI summaries; no edit for notes. Every mistake is permanent and the library only grows. | Remove episode from library (confirm; cascades notes/summary; removes from folders). Edit and delete on every note. Clear summary. |
 | **P0** | Summary isn't grounded in the audio | Bullets come from show notes, or a title-only guess when there are none. This is the headline feature and it's the one competitors do properly. | Transcribe podcast episodes with Groq Whisper (`whisper-large-v3-turbo`, ~$0.04/hr, accepts the audio URL directly). Summarise from the transcript. Show the transcript, searchable, with tap-to-seek. |
 | **P0** | Seeded example data | Five fake episodes and five fake notes ship to every new user with no way to clear them. | Empty-state onboarding that points to Discover. Seed data only in a dev/demo flag. |
+| **P0** | API is unauthenticated | `/api/summarize` is callable by anyone on the public URL and spends Groq credits on each call. Transcription (Phase 2) will cost more. | Verify the Supabase session JWT server-side; return 401 without one. Signed-out users see "Sign in to use AI summary". `/api/youtube` stays open — it costs nothing. |
 | P1 | Episode-only discovery | No show-level search, no follow, no latest-episodes feed, 20 results max. A podcast app that can't follow a show. | Show search; follow a show; "New from shows you follow" on the Dashboard. |
 | P1 | Export is incomplete | Freeform notes and AI summaries are omitted, so the second-brain promise is half kept. | Include freeform notes and summary per episode. Per-episode export (the builder already exists, it has no UI). |
 | P1 | Tags are limited to the episode's | Notes can only take one of the episode's genre tags; untagged when the episode has none. Cross-show tagging is impossible. | Free-text tags with autocomplete from all existing tags; multiple per note. |
@@ -164,7 +167,8 @@ Found in code review; low severity, listed so they aren't lost.
 
 ### In scope
 
-- Sign-in and server-side sync of episodes, notes, folders, settings, activity and progress; localStorage retained as an offline cache.
+- Sign-in (magic link) and server-side sync of episodes, notes, folders, settings, activity and progress; localStorage retained as an offline cache. Sign-in is optional — the app works fully signed-out on local data; signing in enables sync.
+- AI endpoints gated behind sign-in.
 - Remove episode; edit and delete notes and highlights; clear a summary.
 - Audio transcription for podcast episodes; summaries grounded in the transcript; transcript view with tap-to-seek.
 - Empty-state onboarding; no seeded content in production.
@@ -185,7 +189,8 @@ Found in code review; low severity, listed so they aren't lost.
 
 | Area | Requirement |
 |---|---|
-| Data safety | No user action is irreversible without a confirm. Sync conflicts resolve last-write-wins per record with no silent data loss. |
+| Data safety | No user action is irreversible without a confirm. Sync conflicts resolve last-write-wins per record using a per-record `updatedAt`, with no silent data loss. Deletes are soft (`deleted_at`) so a device that was offline can never resurrect a deleted record. First sign-in on a device **merges** local and server data — it never overwrites either side. |
+| Security | Every table has Row Level Security scoped to `auth.uid()`. The service-role key never leaves the Supabase dashboard. AI endpoints verify the session JWT locally (no per-request network call). |
 | Transcription | A 60-minute episode transcribes in under 60 seconds end to end. Files above Groq's tier limit are chunked or the user is told why it can't be done. |
 | Cost | Transcription plus summary under $0.10 per episode at list prices; per-user rate limit to cap abuse. |
 | Privacy | Notes are private by default. Transcripts are stored per user, not shared across users of the same episode, until a clear policy says otherwise. |
@@ -215,13 +220,12 @@ Guardrails: transcription cost per active user per month; P95 time from "Summari
 Three phases. Each ends with something a user can feel, not a layer nobody sees.
 
 ### Phase 1 — Trust the library
-*Nothing is permanent by accident, and nothing is lost.*
+*Nothing is permanent by accident, and nothing is lost.* Backend: **Supabase** (Postgres + Row Level Security + magic-link auth) — see §09. Shipped as four PRs, each independently shippable:
 
-- Remove episode; edit/delete notes; clear summary
-- Sign-in and sync, localStorage as cache
-- Empty-state onboarding; drop seed data in prod
-- Dismissible player; audio errors surfaced
-- Fix the dead controls and small lies
+1. **A library you can change** — remove episode (cascades notes, folder membership, progress); edit/delete notes and highlights; clear a summary. Frontend only.
+2. **An honest first run** — seed data confined to dev builds, stripped from any already-persisted production data; empty states that point to Discover; dismissible mini player; audio load errors surfaced; the dead controls and small lies fixed (Folders-tab filters, "Jump to Notes", the static greeting).
+3. **Accounts** — magic-link sign-in (optional; the app keeps working signed-out), Postgres schema with RLS, and the AI endpoint gated behind a verified session JWT.
+4. **Sync** — merge on first sign-in per device, last-write-wins after that using a per-record timestamp, soft deletes so an offline device can't resurrect one.
 
 ### Phase 2 — Summaries that are true
 *The headline feature reflects the audio.*
@@ -255,6 +259,10 @@ Sequencing rationale: sync before transcription because transcripts are the most
 | Unknown duration never means finished | A duration of 0 is "unknown", not "zero-length". Status derives from real progress; duration is only consulted to decide finished. |
 | Streak needs a real minute | Listened minutes are wall-clock, capped per tick, and a day counts only past one minute — so a tap-and-pause can't earn a streak. |
 | No fake numbers | Every stat, chart and count on every screen is derived from real state. Mock data was removed rather than dressed up. |
+| Backend is Supabase | Matches the app's shape without a rewrite: Postgres + RLS makes per-user privacy a database policy instead of app code, magic-link auth is a single call, and full-text search gives transcript search in Phase 2 for free. Decisively, **Zustand stays** — sync is a layer added beside the stores, not a replacement for them. Convex would suit a live-sync-first product better, but at the cost of rewriting the data layer; not justified when the roadmap sequences trust-and-sync ahead of anything realtime. |
+| PKCE, not implicit, auth flow | supabase-js defaults to the implicit flow, which returns tokens in the URL hash — a direct collision with the app's `HashRouter`. PKCE returns `?code=` in the query string instead. Consequence: the PKCE verifier lives in localStorage, so a magic link must be opened in the same browser that requested it; the sign-in screen says so. |
+| Soft delete, merge on first sign-in | A hard delete can resurrect: a device that was offline when a record was deleted elsewhere will still have it locally, pull it back on reconnect, and push it right back to the server. Deletes are soft (`deleted_at`) and filtered on read. Likewise, "server wins on a new device" would silently discard that device's local data — first sign-in merges by id instead (ids are random, so collisions are effectively nil). |
+| Last-write-wins needs a client timestamp | Without a per-record `updatedAt` set by the client, "last write wins" actually means "last pull wins" — an unsynced offline edit gets clobbered by the next load. `Episode`, `NoteBlock` and `Folder` all carry `updatedAt`. |
 
 ### Open risks
 
@@ -262,14 +270,15 @@ Sequencing rationale: sync before transcription because transcripts are the most
 |---|---|---|
 | Groq free-tier 25 MB file cap | Episodes over ~45 minutes at typical bitrates won't transcribe on the free tier. | Move to the dev tier (100 MB, pay-as-you-go) before Phase 2; chunk as a fallback. |
 | Transcribing third-party audio | Legal posture is sound for open RSS audio a user is already streaming, but store transcripts per user, not as a shared corpus. | Per-user storage; delete transcript when the episode is removed; document the policy. |
-| Sync migration from localStorage | Existing users' data must survive the move to accounts. | First sign-in uploads local stores; keep local as cache; write a migration test with the real store shapes. |
+| Sync migration from localStorage | Existing users' data must survive the move to accounts. | First sign-in merges local and server data by id (never overwrites either side); local storage stays as the offline cache; the seed data is stripped from persisted state before it can ever be uploaded. |
+| Multi-tab writes | Two tabs signed in as the same user on one device both push. | Last-write-wins absorbs it; not solved beyond that in Phase 1. |
+| Production is missing `GROQ_API_KEY` | `GROQ_API_KEY` was only ever added to Vercel's Development environment. AI summarization has been silently unconfigured on the live site since it shipped. | Add the key to Vercel Production before Phase 1 PR 3 (API gating) ships; verify with a direct request, not just a UI click. |
 | Vercel function limits | Long transcriptions could exceed the default function timeout. | Groq's `url` parameter means no download on our side; set `maxDuration`; fall back to async job + poll if needed. |
 | iTunes Search API | Unauthenticated, rate-limited, episode-only. A show feed needs RSS. | Phase 3 introduces RSS parsing server-side for followed shows. |
 
 ### Open questions
 
 - Auth provider: magic link is the least friction for a PWA; is Google sign-in worth the extra surface?
-- Backend: the app has no server state today. Supabase or Convex would give auth, Postgres and realtime sync with the least new infrastructure.
 - Should transcripts be visible to the user, or only feed the summary? Recommendation: visible and tap-to-seek — it's the feature Snipd users cite most.
 - Pricing: free with a monthly transcription cap, or free forever with the cap set by cost? Decide before Phase 2 ships.
 
@@ -279,7 +288,11 @@ Sequencing rationale: sync before transcription because transcripts are the most
 
 ### A. Stack
 
-React 19, Vite 8, TypeScript, Tailwind CSS v4, Zustand with `persist`, React Router (hash routing), `vite-plugin-pwa`. Two Vercel serverless functions. Groq for AI (`openai/gpt-oss-120b` for summaries). Playwright for end-to-end tests. Deployed on Vercel.
+React 19, Vite 8, TypeScript, Tailwind CSS v4, Zustand with `persist`, React Router (hash routing), `vite-plugin-pwa`. Groq for AI (`openai/gpt-oss-120b` for summaries; `whisper-large-v3-turbo` for Phase 2 transcription). Playwright for end-to-end tests. One Vercel project.
+
+**Layout:** an npm-workspace monorepo — `frontend/` (the app above) and `backend/` (plain, framework-agnostic TypeScript service logic) as workspaces, with `api/` at the repo root holding thin Vercel-function adapters that call into `backend/`. `api/` stays at the root because Vercel only discovers serverless functions in a folder named exactly that at the project root; `backend/` is where the logic actually lives.
+
+**Backend-to-be (Phase 1):** Supabase — Postgres with Row Level Security, magic-link auth. See §09 for why.
 
 ### B. Data model and persistence
 
