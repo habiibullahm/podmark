@@ -2,6 +2,8 @@
 // process.env. Groq's `url` parameter means it downloads the audio itself —
 // this function never streams the file through our own server, so there's
 // no risk of it exceeding a Vercel function's payload/memory limits.
+// (SumoPod's gateway doesn't expose an /audio/transcriptions route — Groq
+// stays the transcription provider even though summarize.ts moved off it.)
 
 export interface TranscribeInput {
   audioUrl?: unknown;

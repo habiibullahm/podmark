@@ -11,7 +11,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  // Summaries spend Groq credits per call, so this endpoint requires a
+  // Summaries spend SumoPod credits per call, so this endpoint requires a
   // verified Supabase session — anyone on the public URL could otherwise
   // exhaust the account's credits with no rate limit.
   const userId = await verifyUser(req.headers.authorization, process.env);
