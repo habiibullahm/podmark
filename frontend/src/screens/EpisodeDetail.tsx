@@ -11,8 +11,10 @@ import { AISummaryCard } from "../components/AISummaryCard";
 import { MarkdownNoteEditor } from "../components/MarkdownNoteEditor";
 import { TimestampNoteBlock } from "../components/TimestampNoteBlock";
 import { HighlightBlock } from "../components/HighlightBlock";
+import { TranscriptView } from "../components/TranscriptView";
 import { formatTime } from "../lib/format";
 import { useAuthStore } from "../store/useAuthStore";
+import { useTranscriptStore } from "../store/useTranscriptStore";
 import { isSupabaseConfigured } from "../lib/supabase";
 
 const DEFAULT_FREEFORM_NOTES = "- Key theme this episode revolves around...\n- ";
@@ -40,6 +42,11 @@ export function EpisodeDetail() {
   const removeEpisodeFromFolder = useFoldersStore((s) => s.removeEpisodeFromFolder);
   const removeEpisode = useEpisodesStore((s) => s.removeEpisode);
   const authStatus = useAuthStore((s) => s.status);
+  const transcript = useTranscriptStore((s) => (id ? s.transcripts[id] : undefined));
+  const transcribing = useTranscriptStore((s) => (id ? s.transcribing[id] : false));
+  const transcribeError = useTranscriptStore((s) => (id ? s.transcribeErrors[id] : undefined));
+  const generateTranscript = useTranscriptStore((s) => s.generateTranscript);
+  const clearTranscript = useTranscriptStore((s) => s.clearTranscript);
 
   const freeformNotes = storedFreeformNotes ?? DEFAULT_FREEFORM_NOTES;
   const setFreeformNotes = (update: string | ((prev: string) => string)) => {
@@ -137,11 +144,16 @@ export function EpisodeDetail() {
     setAddingHighlight(false);
   };
 
+  // A transcript of what was actually said outranks the publisher's show
+  // notes — if one exists, ground the summary in it instead.
   const handleSummarize = async () => {
     setGenerating(true);
-    await generateSummary(episode);
+    const transcriptText = transcript?.map((seg) => seg.text).join(" ");
+    await generateSummary(episode, transcriptText);
     setGenerating(false);
   };
+
+  const handleTranscribe = () => generateTranscript(episode);
 
   const handleRemoveEpisode = () => {
     if (playerEpisode?.id === episode.id) clearEpisode();
@@ -154,10 +166,13 @@ export function EpisodeDetail() {
   // guessing from a title. Rather than offer a button that can't deliver,
   // YouTube episodes are notes-only.
   const canSummarize = !episode.sourceUrl;
-  // Summaries spend Groq credits, so once accounts exist they're gated
-  // behind sign-in. Deployments without Supabase configured (isSupabaseConfigured
-  // false — no env vars set) predate accounts entirely, so summarizing stays
-  // open there rather than showing a sign-in prompt for a feature that isn't
+  // Transcription needs real audio to send to Groq — the seed catalog (dev
+  // only) has none, and YouTube episodes are excluded by canSummarize above.
+  const canTranscribe = canSummarize && !!episode.audioUrl;
+  // Both spend Groq credits, so once accounts exist they're gated behind
+  // sign-in. Deployments without Supabase configured (isSupabaseConfigured
+  // false — no env vars set) predate accounts entirely, so both stay open
+  // there rather than showing a sign-in prompt for a feature that isn't
   // wired up yet.
   const summarizeRequiresSignIn = isSupabaseConfigured && authStatus !== "signedIn";
 
@@ -349,6 +364,19 @@ export function EpisodeDetail() {
             <span>{generating ? "Summarizing…" : "AI Summarize Episode"}</span>
           </button>
         )}
+        {canTranscribe && !summarizeRequiresSignIn && !transcript && (
+          <button
+            type="button"
+            onClick={handleTranscribe}
+            disabled={transcribing}
+            className={`flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-bg-surface px-3.5 py-2 text-xs font-semibold text-text-primary transition-opacity hover:border-accent/60 disabled:opacity-70 ${
+              transcribing ? "animate-pulse" : ""
+            }`}
+          >
+            <span>🎙️</span>
+            <span>{transcribing ? "Transcribing…" : "Transcribe Episode"}</span>
+          </button>
+        )}
       </div>
 
       {(addingNote || addingHighlight) && (
@@ -397,6 +425,26 @@ export function EpisodeDetail() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {canTranscribe && transcribeError && (
+        <div className="mx-5 mt-4 flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-surface p-3 md:mx-0">
+          <p className="text-[13px] text-text-secondary">🎙️ {transcribeError}</p>
+          <button
+            type="button"
+            onClick={handleTranscribe}
+            disabled={transcribing}
+            className="shrink-0 rounded-lg bg-bg-surface-alt px-3 py-1.5 text-xs font-medium text-text-primary hover:text-accent disabled:opacity-50"
+          >
+            {transcribing ? "Retrying…" : "Try again"}
+          </button>
+        </div>
+      )}
+
+      {canTranscribe && transcript && (
+        <div className="mx-5 mt-4 md:mx-0">
+          <TranscriptView segments={transcript} onClear={() => clearTranscript(episode.id)} />
         </div>
       )}
 

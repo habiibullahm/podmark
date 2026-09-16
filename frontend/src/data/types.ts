@@ -43,3 +43,9 @@ export interface DailyGoal {
   todayMinutes: number;
   last7Days: number[]; // minutes per day, oldest first
 }
+
+export interface TranscriptSegment {
+  start: number; // seconds
+  end: number; // seconds
+  text: string;
+}

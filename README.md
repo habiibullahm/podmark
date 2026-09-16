@@ -34,7 +34,7 @@ npm run lint
 
 ## Environment
 
-`api/summarize.ts` needs `GROQ_API_KEY` (and optionally `GROQ_MODEL`, default `openai/gpt-oss-120b`). For local `vercel dev`, pull it with `vercel env pull .env.local --environment=development` rather than hand-editing the file. YouTube lookup needs no key.
+`api/summarize.ts` needs `SUMOPOD_API_KEY` (optionally `SUMOPOD_MODEL`, default `deepseek-v4-flash` — model access is restricted per key, check what's available on yours). SumoPod (`ai.sumopod.com`) is an OpenAI-compatible chat completions gateway; it doesn't expose an audio transcription endpoint, so `api/transcribe.ts` still needs `GROQ_API_KEY` for Whisper. For local `vercel dev`, pull env vars with `vercel env pull .env.local --environment=development` rather than hand-editing the file. YouTube lookup needs no key.
 
 **Accounts (Supabase).** Optional — without these, the app runs fully signed-out on local `localStorage` data, exactly as before, and `/api/summarize` stays open. To enable accounts:
 
