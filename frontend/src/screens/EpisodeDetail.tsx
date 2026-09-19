@@ -161,6 +161,7 @@ const [youtubeTranscriptLoading, setYoutubeTranscriptLoading] = useState(false);
 
   const handleTranscribe = () => generateTranscript(episode);
 
+<<<<<<< Updated upstream
   const handleFetchYoutubeTranscript = async () => {
     if (!episode?.sourceUrl || youtubeTranscriptLoading) return;
     setYoutubeTranscriptLoading(true);
@@ -179,6 +180,8 @@ const [youtubeTranscriptLoading, setYoutubeTranscriptLoading] = useState(false);
     }
   };
 
+=======
+>>>>>>> Stashed changes
   const handleExportEpisode = () => {
     const markdown = buildEpisodeMarkdown(episode, notes, exportFormat, {
       freeformNotes: storedFreeformNotes,
