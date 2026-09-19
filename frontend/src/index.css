@@ -14,27 +14,72 @@
   --palette-neutral-100: #f5f5f5;
   --palette-indigo-500: #6366f1;
   --palette-green-500: #22c55e;
+
+  /* Light-theme primitives */
+  --palette-white: #ffffff;
+  --palette-cloud-50: #f7f7f8;
+  --palette-cloud-100: #eeeef0;
+  --palette-slate-300: #d4d4d8;
+  --palette-slate-500: #71717a;
+  --palette-slate-600: #52525b;
+  --palette-charcoal-900: #18181b;
 }
 
 /*
- * Semantic tokens — what components actually use, dark-mode values.
+ * Semantic tokens — what components actually use. Defined here (bare :root)
+ * for the light theme, since that's the universal default for a system with
+ * no color-scheme preference or a browser that doesn't report one.
  * Tailwind v4 turns every `--color-*` var here into a utility (bg-*, text-*, border-*, stroke-*, accent-*…).
  */
 @theme {
+  --color-bg-primary: var(--palette-white);
+  --color-bg-surface: var(--palette-cloud-50);
+  --color-bg-surface-alt: var(--palette-cloud-100);
+  --color-text-primary: var(--palette-charcoal-900);
+  --color-text-secondary: var(--palette-slate-600);
+  --color-text-tertiary: var(--palette-slate-500);
+  --color-accent: var(--palette-indigo-500);
+  --color-success: var(--palette-green-500);
+  --color-border: var(--palette-slate-300);
+
+  --font-sans: "Inter", "SF Pro Display", system-ui, -apple-system, sans-serif;
+
+  --animate-fade-slide-up: fade-slide-up 0.35s ease-out both;
+  --animate-fade-in: fade-in 0.3s ease-out both;
+}
+
+/* System prefers dark, and the user hasn't explicitly forced light. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg-primary: var(--palette-charcoal-950);
+    --color-bg-surface: var(--palette-graphite-800);
+    --color-bg-surface-alt: var(--palette-graphite-700);
+    --color-text-primary: var(--palette-neutral-100);
+    --color-text-secondary: var(--palette-neutral-400);
+    --color-text-tertiary: var(--palette-neutral-500);
+    --color-border: var(--palette-graphite-600);
+  }
+}
+
+/* Explicit manual choice — wins over the system preference either way. */
+:root[data-theme="dark"] {
   --color-bg-primary: var(--palette-charcoal-950);
   --color-bg-surface: var(--palette-graphite-800);
   --color-bg-surface-alt: var(--palette-graphite-700);
   --color-text-primary: var(--palette-neutral-100);
   --color-text-secondary: var(--palette-neutral-400);
   --color-text-tertiary: var(--palette-neutral-500);
-  --color-accent: var(--palette-indigo-500);
-  --color-success: var(--palette-green-500);
   --color-border: var(--palette-graphite-600);
+}
 
-  --font-sans: "Inter", "SF Pro Display", system-ui, -apple-system, sans-serif;
-
-  --animate-fade-slide-up: fade-slide-up 0.35s ease-out both;
-  --animate-fade-in: fade-in 0.3s ease-out both;
+:root[data-theme="light"] {
+  --color-bg-primary: var(--palette-white);
+  --color-bg-surface: var(--palette-cloud-50);
+  --color-bg-surface-alt: var(--palette-cloud-100);
+  --color-text-primary: var(--palette-charcoal-900);
+  --color-text-secondary: var(--palette-slate-600);
+  --color-text-tertiary: var(--palette-slate-500);
+  --color-border: var(--palette-slate-300);
 }
 
 @keyframes fade-slide-up {

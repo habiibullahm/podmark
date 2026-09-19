@@ -1,23 +1,24 @@
 import { useRef, useState } from "react";
 import type { NoteBlock } from "../data/types";
 import { useNotesStore } from "../store/useNotesStore";
+import { useAllKnownTags } from "../lib/useAllTags";
 import { TimestampChip } from "./TimestampChip";
 import { TagChip } from "./TagChip";
+import { TagInput } from "./TagInput";
 import { useClickOutside } from "../lib/useClickOutside";
 import { formatTime } from "../lib/format";
 
-export function HighlightBlock({ note, episodeTags }: { note: NoteBlock; episodeTags: string[] }) {
+export function HighlightBlock({ note }: { note: NoteBlock }) {
   const updateNote = useNotesStore((s) => s.updateNote);
   const removeNote = useNotesStore((s) => s.removeNote);
+  const allKnownTags = useAllKnownTags();
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [draftText, setDraftText] = useState(note.text);
-  const [draftTag, setDraftTag] = useState(note.tags[0] ?? "");
+  const [draftTags, setDraftTags] = useState<string[]>(note.tags);
   const menuRef = useRef<HTMLDivElement>(null);
   useClickOutside(menuRef, () => setMenuOpen(false), menuOpen);
-
-  const tagOptions = Array.from(new Set([...episodeTags, ...note.tags]));
 
   if (editing) {
     return (
@@ -29,39 +30,28 @@ export function HighlightBlock({ note, episodeTags }: { note: NoteBlock; episode
           rows={2}
           className="w-full resize-none rounded-lg border border-border bg-bg-surface-alt px-3 py-2 text-[14px] italic text-text-primary focus:border-accent focus:outline-none"
         />
-        <div className="mt-2 flex items-center justify-between gap-2">
-          <select
-            value={draftTag}
-            onChange={(e) => setDraftTag(e.target.value)}
-            className="rounded-lg border border-border bg-bg-surface-alt px-2 py-1.5 text-xs text-text-secondary focus:outline-none"
+        <div className="mt-2">
+          <TagInput tags={draftTags} onChange={setDraftTags} suggestions={allKnownTags} />
+        </div>
+        <div className="mt-2 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            className="rounded-lg px-3 py-1.5 text-xs font-medium text-text-secondary"
           >
-            <option value="">No tag</option>
-            {tagOptions.map((t) => (
-              <option key={t} value={t}>
-                #{t}
-              </option>
-            ))}
-          </select>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setEditing(false)}
-              className="rounded-lg px-3 py-1.5 text-xs font-medium text-text-secondary"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (!draftText.trim()) return;
-                updateNote(note.id, { text: draftText.trim(), tags: draftTag ? [draftTag] : [] });
-                setEditing(false);
-              }}
-              className="rounded-lg bg-accent px-3.5 py-1.5 text-xs font-semibold text-white"
-            >
-              Save changes
-            </button>
-          </div>
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (!draftText.trim()) return;
+              updateNote(note.id, { text: draftText.trim(), tags: draftTags });
+              setEditing(false);
+            }}
+            className="rounded-lg bg-accent px-3.5 py-1.5 text-xs font-semibold text-white"
+          >
+            Save changes
+          </button>
         </div>
       </div>
     );
@@ -108,7 +98,7 @@ export function HighlightBlock({ note, episodeTags }: { note: NoteBlock; episode
                     type="button"
                     onClick={() => {
                       setDraftText(note.text);
-                      setDraftTag(note.tags[0] ?? "");
+                      setDraftTags(note.tags);
                       setEditing(true);
                       setMenuOpen(false);
                     }}
@@ -132,7 +122,7 @@ export function HighlightBlock({ note, episodeTags }: { note: NoteBlock; episode
           </div>
           <div className="mt-2 flex items-center justify-between">
             <TimestampChip seconds={note.timestampSec} />
-            <div className="flex gap-1.5">
+            <div className="flex flex-wrap justify-end gap-1.5">
               {note.tags.map((t) => (
                 <TagChip key={t} label={t} />
               ))}

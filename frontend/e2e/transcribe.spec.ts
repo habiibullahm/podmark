@@ -72,8 +72,12 @@ test.describe("Transcription", () => {
     );
 
     await page.getByRole("button", { name: "Transcribe Episode" }).click();
-    await expect(page.getByText("out of credits")).toBeVisible({ timeout: 3000 });
-    await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+    // The fake audioUrl also fails to load as real <audio>, so PR2's separate
+    // "audio couldn't be loaded" banner (its own unrelated "Try again"
+    // button) renders alongside this one — scope to this banner specifically.
+    const errorBanner = page.getByText("🎙️ The Groq account is out of credits.").locator("xpath=..");
+    await expect(errorBanner).toBeVisible({ timeout: 3000 });
+    await expect(errorBanner.getByRole("button", { name: "Try again" })).toBeVisible();
   });
 
   test("clearing the transcript removes it and brings back the Transcribe button", async ({ page }) => {

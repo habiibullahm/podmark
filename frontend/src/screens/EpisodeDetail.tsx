@@ -4,8 +4,10 @@ import { useEpisodesStore } from "../store/useEpisodesStore";
 import { useFoldersStore } from "../store/useFoldersStore";
 import { usePlayer } from "../context/PlayerContext";
 import { useNotesStore } from "../store/useNotesStore";
-import { filterNotesByEpisode } from "../lib/episodes";
+import { filterNotesByEpisode, DEFAULT_FREEFORM_NOTES } from "../lib/episodes";
 import { TagChip } from "../components/TagChip";
+import { TagInput } from "../components/TagInput";
+import { useAllKnownTags } from "../lib/useAllTags";
 import { EpisodeArtwork } from "../components/EpisodeArtwork";
 import { AISummaryCard } from "../components/AISummaryCard";
 import { MarkdownNoteEditor } from "../components/MarkdownNoteEditor";
@@ -15,10 +17,10 @@ import { TranscriptView } from "../components/TranscriptView";
 import { formatTime } from "../lib/format";
 import { useAuthStore } from "../store/useAuthStore";
 import { useTranscriptStore } from "../store/useTranscriptStore";
+import { useSettingsStore } from "../store/useSettingsStore";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { fetchYoutubeTranscript } from "../lib/youtubeTranscriptApi";
-
-const DEFAULT_FREEFORM_NOTES = "- Key theme this episode revolves around...\n- ";
+import { buildEpisodeMarkdown, downloadMarkdownFile } from "../lib/export";
 
 export function EpisodeDetail() {
   const { id } = useParams<{ id: string }>();
@@ -43,6 +45,8 @@ export function EpisodeDetail() {
   const removeEpisodeFromFolder = useFoldersStore((s) => s.removeEpisodeFromFolder);
   const removeEpisode = useEpisodesStore((s) => s.removeEpisode);
   const authStatus = useAuthStore((s) => s.status);
+  const exportFormat = useSettingsStore((s) => s.exportFormat);
+  const allKnownTags = useAllKnownTags();
   const transcript = useTranscriptStore((s) => (id ? s.transcripts[id] : undefined));
   const transcribing = useTranscriptStore((s) => (id ? s.transcribing[id] : false));
   const transcribeError = useTranscriptStore((s) => (id ? s.transcribeErrors[id] : undefined));
@@ -58,7 +62,7 @@ export function EpisodeDetail() {
   const [addingNote, setAddingNote] = useState(false);
   const [addingHighlight, setAddingHighlight] = useState(false);
   const [draftText, setDraftText] = useState("");
-  const [draftTag, setDraftTag] = useState(episode?.tags[0] ?? "");
+  const [draftTags, setDraftTags] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
 const [youtubeTranscriptLoading, setYoutubeTranscriptLoading] = useState(false);
   const [folderMenuOpen, setFolderMenuOpen] = useState(false);
@@ -87,7 +91,7 @@ const [youtubeTranscriptLoading, setYoutubeTranscriptLoading] = useState(false);
     setAddingNote(false);
     setAddingHighlight(false);
     setDraftText("");
-    setDraftTag(episode?.tags[0] ?? "");
+    setDraftTags([]);
     setGenerating(false);
     setFolderMenuOpen(false);
     setConfirmingRemove(false);
@@ -134,14 +138,14 @@ const [youtubeTranscriptLoading, setYoutubeTranscriptLoading] = useState(false);
 
   const handleAddNote = () => {
     if (!draftText.trim()) return;
-    addNote("timestamp-note", episode.id, currentPosition, draftText.trim(), draftTag ? [draftTag] : []);
+    addNote("timestamp-note", episode.id, currentPosition, draftText.trim(), draftTags);
     setDraftText("");
     setAddingNote(false);
   };
 
   const handleAddHighlight = () => {
     if (!draftText.trim()) return;
-    addNote("highlight", episode.id, currentPosition, draftText.trim(), draftTag ? [draftTag] : []);
+    addNote("highlight", episode.id, currentPosition, draftText.trim(), draftTags);
     setDraftText("");
     setAddingHighlight(false);
   };
@@ -157,6 +161,7 @@ const [youtubeTranscriptLoading, setYoutubeTranscriptLoading] = useState(false);
 
   const handleTranscribe = () => generateTranscript(episode);
 
+<<<<<<< Updated upstream
 const handleFetchYoutubeTranscript = async () => {
   if (!episode?.sourceUrl || youtubeTranscriptLoading) return;
   setYoutubeTranscriptLoading(true);
@@ -174,6 +179,16 @@ const handleFetchYoutubeTranscript = async () => {
     setYoutubeTranscriptLoading(false);
   }
 };
+=======
+  const handleExportEpisode = () => {
+    const markdown = buildEpisodeMarkdown(episode, notes, exportFormat, {
+      freeformNotes: storedFreeformNotes,
+      summaryBullets: aiSummary,
+    });
+    const slug = episode.id.replace(/[^a-z0-9-]/gi, "-").toLowerCase();
+    downloadMarkdownFile(`podmark-${slug}.md`, markdown);
+  };
+>>>>>>> Stashed changes
 
   const handleRemoveEpisode = () => {
     if (playerEpisode?.id === episode.id) clearEpisode();
@@ -236,6 +251,17 @@ const handleFetchYoutubeTranscript = async () => {
                   </button>
                 );
               })}
+              <div className="my-1 border-t border-border" />
+              <button
+                type="button"
+                onClick={() => {
+                  handleExportEpisode();
+                  setFolderMenuOpen(false);
+                }}
+                className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-sm text-text-primary hover:bg-bg-surface-alt"
+              >
+                Export episode ↗
+              </button>
               <div className="my-1 border-t border-border" />
               <button
                 type="button"
@@ -425,18 +451,10 @@ const handleFetchYoutubeTranscript = async () => {
             rows={2}
             className="mt-2 w-full resize-none rounded-lg border border-border bg-bg-surface-alt px-3 py-2 text-[14px] text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none"
           />
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <select
-              value={draftTag}
-              onChange={(e) => setDraftTag(e.target.value)}
-              className="rounded-lg border border-border bg-bg-surface-alt px-2 py-1.5 text-xs text-text-secondary focus:outline-none"
-            >
-              {episode.tags.map((t) => (
-                <option key={t} value={t}>
-                  #{t}
-                </option>
-              ))}
-            </select>
+          <div className="mt-2">
+            <TagInput tags={draftTags} onChange={setDraftTags} suggestions={allKnownTags} />
+          </div>
+          <div className="mt-2 flex items-center justify-end gap-2">
             <div className="flex gap-2">
               <button
                 type="button"
@@ -544,9 +562,9 @@ const handleFetchYoutubeTranscript = async () => {
         <div className="mx-5 mt-4 space-y-2.5 md:mx-0">
           {sortedNotes.map((note) =>
             note.type === "highlight" ? (
-              <HighlightBlock key={note.id} note={note} episodeTags={episode.tags} />
+              <HighlightBlock key={note.id} note={note} />
             ) : (
-              <TimestampNoteBlock key={note.id} note={note} episodeTags={episode.tags} />
+              <TimestampNoteBlock key={note.id} note={note} />
             ),
           )}
         </div>

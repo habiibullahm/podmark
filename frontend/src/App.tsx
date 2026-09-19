@@ -1,7 +1,11 @@
+import { useEffect } from "react";
 import { HashRouter, Route, Routes } from "react-router-dom";
 import { PlayerProvider } from "./context/PlayerContext";
 import { useUIStore } from "./store/useUIStore";
 import { SIDEBAR_PADDING_CLASS, SIDEBAR_LEFT_OFFSET_CLASS } from "./lib/sidebarLayout";
+import { startDailyReminderWatcher } from "./lib/dailyReminder";
+import { applyTheme } from "./lib/applyTheme";
+import { useThemeStore } from "./store/useThemeStore";
 import { Sidebar } from "./components/Sidebar";
 import { BottomTabBar } from "./components/BottomTabBar";
 import { CompactAudioPlayer } from "./components/CompactAudioPlayer";
@@ -17,6 +21,15 @@ function App() {
   const collapsed = useUIStore((s) => s.sidebarCollapsed);
   const sidebarOffset = collapsed ? SIDEBAR_PADDING_CLASS.collapsed : SIDEBAR_PADDING_CLASS.expanded;
   const fixedBarOffset = collapsed ? SIDEBAR_LEFT_OFFSET_CLASS.collapsed : SIDEBAR_LEFT_OFFSET_CLASS.expanded;
+
+  const theme = useThemeStore((s) => s.theme);
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+
+  useEffect(() => {
+    startDailyReminderWatcher();
+  }, []);
 
   return (
     <PlayerProvider>

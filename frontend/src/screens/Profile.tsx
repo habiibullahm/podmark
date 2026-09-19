@@ -5,6 +5,7 @@ import { useSettingsStore } from "../store/useSettingsStore";
 import { useCurrentStreak } from "../store/useActivityStore";
 import { useAuthStore } from "../store/useAuthStore";
 import { useSyncStore } from "../store/useSyncStore";
+import { useThemeStore } from "../store/useThemeStore";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { getAvatarLetter, getDisplayName } from "../lib/identity";
 import { SectionHeader } from "../components/SectionHeader";
@@ -156,9 +157,28 @@ export function Profile() {
   const adjustDailyGoalTarget = useSettingsStore((s) => s.adjustDailyGoalTarget);
   const notificationsEnabled = useSettingsStore((s) => s.notificationsEnabled);
   const toggleNotifications = useSettingsStore((s) => s.toggleNotifications);
+  const [notificationDenied, setNotificationDenied] = useState(false);
+  const notificationsSupported = typeof Notification !== "undefined";
+
+  const handleToggleNotifications = async () => {
+    if (notificationsEnabled) {
+      toggleNotifications();
+      return;
+    }
+    if (!notificationsSupported) return;
+    const permission = await Notification.requestPermission();
+    if (permission === "granted") {
+      setNotificationDenied(false);
+      toggleNotifications();
+    } else {
+      setNotificationDenied(true);
+    }
+  };
   const exportFormat = useSettingsStore((s) => s.exportFormat);
   const setExportFormat = useSettingsStore((s) => s.setExportFormat);
   const user = useAuthStore((s) => s.user);
+  const theme = useThemeStore((s) => s.theme);
+  const setTheme = useThemeStore((s) => s.setTheme);
 
   return (
     <div className="pb-40 px-5 pt-[calc(env(safe-area-inset-top)+1.25rem)] md:px-0 md:pb-16 md:pt-0">
@@ -206,26 +226,68 @@ export function Profile() {
 
       <div className="mt-6">
         <SectionHeader title="Notifications" />
-        <div className="mx-5 flex items-center justify-between rounded-2xl border border-border bg-bg-surface p-4 md:mx-0">
-          <div>
-            <p className="text-[15px] font-semibold text-text-primary">Daily reminder</p>
-            <p className="text-xs text-text-secondary">Nudge me if I haven't hit my listening goal.</p>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={notificationsEnabled}
-            onClick={toggleNotifications}
-            className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors ${
-              notificationsEnabled ? "border-accent bg-accent" : "border-border bg-bg-surface-alt"
-            }`}
-          >
-            <span
-              className={`absolute left-0 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
-                notificationsEnabled ? "translate-x-[22px]" : "translate-x-0.5"
+        <div className="mx-5 rounded-2xl border border-border bg-bg-surface p-4 md:mx-0">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[15px] font-semibold text-text-primary">Daily reminder</p>
+              <p className="text-xs text-text-secondary">
+                {notificationsSupported
+                  ? "Nudge me here if I haven't hit my listening goal by evening — only while PodMark is open in a tab."
+                  : "Notifications aren't supported in this browser."}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={notificationsEnabled}
+              onClick={handleToggleNotifications}
+              disabled={!notificationsSupported}
+              className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors disabled:opacity-50 ${
+                notificationsEnabled ? "border-accent bg-accent" : "border-border bg-bg-surface-alt"
               }`}
-            />
-          </button>
+            >
+              <span
+                className={`absolute left-0 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                  notificationsEnabled ? "translate-x-[22px]" : "translate-x-0.5"
+                }`}
+              />
+            </button>
+          </div>
+          {notificationDenied && (
+            <p className="mt-3 text-xs text-red-400">
+              Notifications are blocked for this site — allow them in your browser's site settings, then try again.
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-6">
+        <SectionHeader title="Appearance" />
+        <div className="mx-5 rounded-2xl border border-border bg-bg-surface p-4 md:mx-0">
+          <p className="text-[15px] font-semibold text-text-primary">Theme</p>
+          <p className="mb-3 text-xs text-text-secondary">Follows your system by default.</p>
+          <div className="flex gap-2">
+            {(
+              [
+                { value: "system", label: "System" },
+                { value: "light", label: "Light" },
+                { value: "dark", label: "Dark" },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setTheme(opt.value)}
+                className={`flex-1 rounded-xl border px-3 py-2 text-sm font-medium transition-colors ${
+                  theme === opt.value
+                    ? "border-accent bg-accent/10 text-accent"
+                    : "border-border text-text-secondary hover:border-accent/60"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

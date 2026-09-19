@@ -8,8 +8,9 @@ import { usePlayer } from "../context/PlayerContext";
 import { getEffectiveStatus } from "../lib/episodes";
 import { searchPodcastEpisodes } from "../lib/itunesApi";
 import { fetchYouTubeEpisode, isYouTubeUrl } from "../lib/youtubeApi";
-import { buildLibraryMarkdown, downloadMarkdownFile } from "../lib/export";
+import { buildLibraryMarkdown, downloadMarkdownFile, hasMeaningfulFreeformNotes } from "../lib/export";
 import { formatTime } from "../lib/format";
+import { useAllKnownTags } from "../lib/useAllTags";
 import type { Episode } from "../data/types";
 import { SearchBar } from "../components/SearchBar";
 import { SegmentedTabSwitcher } from "../components/SegmentedTabSwitcher";
@@ -85,6 +86,8 @@ export function Library() {
   const [search, setSearch] = useState("");
   const [activeTags, setActiveTags] = useState<string[]>([]);
   const storeNotes = useNotesStore((s) => s.notes);
+  const freeformNotes = useNotesStore((s) => s.freeformNotes);
+  const aiSummaries = useNotesStore((s) => s.aiSummaries);
   const episodes = useEpisodesStore((s) => s.episodes);
   const addEpisode = useEpisodesStore((s) => s.addEpisode);
   const exportFormat = useSettingsStore((s) => s.exportFormat);
@@ -146,8 +149,13 @@ export function Library() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [folderActionsOpen]);
 
+  const hasExportableContent =
+    storeNotes.length > 0 ||
+    Object.values(freeformNotes).some(hasMeaningfulFreeformNotes) ||
+    Object.values(aiSummaries).some((bullets) => bullets.length > 0);
+
   const handleExportAll = () => {
-    const markdown = buildLibraryMarkdown(episodes, storeNotes, exportFormat);
+    const markdown = buildLibraryMarkdown(episodes, storeNotes, exportFormat, freeformNotes, aiSummaries);
     downloadMarkdownFile(`podmark-export-${new Date().toISOString().slice(0, 10)}.md`, markdown);
   };
 
@@ -205,10 +213,7 @@ export function Library() {
     }
   };
 
-  const allTags = useMemo(
-    () => Array.from(new Set(episodes.flatMap((e) => e.tags))).sort(),
-    [episodes],
-  );
+  const allTags = useAllKnownTags();
 
   const toggleTag = (tag: string) =>
     setActiveTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
@@ -243,8 +248,8 @@ export function Library() {
         <button
           type="button"
           onClick={handleExportAll}
-          disabled={storeNotes.length === 0}
-          title={storeNotes.length === 0 ? "No notes yet to export" : `Export all notes as Markdown (${exportFormat} format)`}
+          disabled={!hasExportableContent}
+          title={!hasExportableContent ? "No notes yet to export" : `Export all notes as Markdown (${exportFormat} format)`}
           className="text-sm font-medium text-accent disabled:cursor-not-allowed disabled:text-text-tertiary"
         >
           Export All ↗
