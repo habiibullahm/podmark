@@ -161,25 +161,24 @@ const [youtubeTranscriptLoading, setYoutubeTranscriptLoading] = useState(false);
 
   const handleTranscribe = () => generateTranscript(episode);
 
-<<<<<<< Updated upstream
-const handleFetchYoutubeTranscript = async () => {
-  if (!episode?.sourceUrl || youtubeTranscriptLoading) return;
-  setYoutubeTranscriptLoading(true);
-  try {
-    const segments = await fetchYoutubeTranscript(episode.sourceUrl);
-    const store = useTranscriptStore.getState();
-    store.transcripts[episode.id] = segments;
-    useTranscriptStore.setState({ transcripts: { ...store.transcripts } });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to fetch transcript.";
-    const store = useTranscriptStore.getState();
-    store.transcribeErrors[episode.id] = message;
-    useTranscriptStore.setState({ transcribeErrors: { ...store.transcribeErrors } });
-  } finally {
-    setYoutubeTranscriptLoading(false);
-  }
-};
-=======
+  const handleFetchYoutubeTranscript = async () => {
+    if (!episode?.sourceUrl || youtubeTranscriptLoading) return;
+    setYoutubeTranscriptLoading(true);
+    try {
+      const segments = await fetchYoutubeTranscript(episode.sourceUrl);
+      const store = useTranscriptStore.getState();
+      store.transcripts[episode.id] = segments;
+      useTranscriptStore.setState({ transcripts: { ...store.transcripts } });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to fetch transcript.";
+      const store = useTranscriptStore.getState();
+      store.transcribeErrors[episode.id] = message;
+      useTranscriptStore.setState({ transcribeErrors: { ...store.transcribeErrors } });
+    } finally {
+      setYoutubeTranscriptLoading(false);
+    }
+  };
+
   const handleExportEpisode = () => {
     const markdown = buildEpisodeMarkdown(episode, notes, exportFormat, {
       freeformNotes: storedFreeformNotes,
@@ -188,7 +187,6 @@ const handleFetchYoutubeTranscript = async () => {
     const slug = episode.id.replace(/[^a-z0-9-]/gi, "-").toLowerCase();
     downloadMarkdownFile(`podmark-${slug}.md`, markdown);
   };
->>>>>>> Stashed changes
 
   const handleRemoveEpisode = () => {
     if (playerEpisode?.id === episode.id) clearEpisode();
