@@ -16,6 +16,7 @@ import { formatTime } from "../lib/format";
 import { useAuthStore } from "../store/useAuthStore";
 import { useTranscriptStore } from "../store/useTranscriptStore";
 import { isSupabaseConfigured } from "../lib/supabase";
+import { fetchYoutubeTranscript } from "../lib/youtubeTranscriptApi";
 
 const DEFAULT_FREEFORM_NOTES = "- Key theme this episode revolves around...\n- ";
 
@@ -59,6 +60,7 @@ export function EpisodeDetail() {
   const [draftText, setDraftText] = useState("");
   const [draftTag, setDraftTag] = useState(episode?.tags[0] ?? "");
   const [generating, setGenerating] = useState(false);
+const [youtubeTranscriptLoading, setYoutubeTranscriptLoading] = useState(false);
   const [folderMenuOpen, setFolderMenuOpen] = useState(false);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
   const folderMenuRef = useRef<HTMLDivElement>(null);
@@ -155,20 +157,35 @@ export function EpisodeDetail() {
 
   const handleTranscribe = () => generateTranscript(episode);
 
+const handleFetchYoutubeTranscript = async () => {
+  if (!episode?.sourceUrl || youtubeTranscriptLoading) return;
+  setYoutubeTranscriptLoading(true);
+  try {
+    const segments = await fetchYoutubeTranscript(episode.sourceUrl);
+    const store = useTranscriptStore.getState();
+    store.transcripts[episode.id] = segments;
+    useTranscriptStore.setState({ transcripts: { ...store.transcripts } });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to fetch transcript.";
+    const store = useTranscriptStore.getState();
+    store.transcribeErrors[episode.id] = message;
+    useTranscriptStore.setState({ transcribeErrors: { ...store.transcribeErrors } });
+  } finally {
+    setYoutubeTranscriptLoading(false);
+  }
+};
+
   const handleRemoveEpisode = () => {
     if (playerEpisode?.id === episode.id) clearEpisode();
     removeEpisode(episode.id);
     navigate("/library");
   };
 
-  // There's no legitimate way to get a YouTube video's content — captions are
-  // gated and the audio can't be fetched — so a summary would be the model
-  // guessing from a title. Rather than offer a button that can't deliver,
-  // YouTube episodes are notes-only.
-  const canSummarize = !episode.sourceUrl;
-  // Transcription needs real audio to send to Groq — the seed catalog (dev
-  // only) has none, and YouTube episodes are excluded by canSummarize above.
-  const canTranscribe = canSummarize && !!episode.audioUrl;
+  // iTunes episodes can always be summarised (via show notes or transcript).
+  // YouTube episodes become summarisable once a transcript has been fetched.
+  const canSummarize = !episode.sourceUrl || !!transcript;
+  // Audio transcription needs a real audio URL — only applies to iTunes.
+  const canTranscribe = !episode.sourceUrl && !!episode.audioUrl;
   // Both spend Groq credits, so once accounts exist they're gated behind
   // sign-in. Deployments without Supabase configured (isSupabaseConfigured
   // false — no env vars set) predate accounts entirely, so both stay open
@@ -307,14 +324,29 @@ export function EpisodeDetail() {
         className="mt-4 flex max-w-full flex-nowrap gap-2 overflow-x-auto px-5 pb-1 no-scrollbar md:flex-wrap md:overflow-visible md:px-0"
       >
         {episode.sourceUrl ? (
-          <a
-            href={episode.sourceUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-bg-surface px-3.5 py-2 text-xs font-semibold text-text-primary hover:border-accent/60"
-          >
-            ▶ Watch on YouTube ↗
-          </a>
+          <>
+            <a
+              href={episode.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-bg-surface px-3.5 py-2 text-xs font-semibold text-text-primary hover:border-accent/60"
+            >
+              ▶ Watch on YouTube ↗
+            </a>
+            {!transcript && (
+              <button
+                type="button"
+                onClick={handleFetchYoutubeTranscript}
+                disabled={youtubeTranscriptLoading}
+                className={`flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-bg-surface px-3.5 py-2 text-xs font-semibold text-text-primary transition-opacity hover:border-accent/60 disabled:opacity-70 ${
+                  youtubeTranscriptLoading ? "animate-pulse" : ""
+                }`}
+              >
+                <span>📝</span>
+                <span>{youtubeTranscriptLoading ? "Fetching transcript…" : "Get Transcript"}</span>
+              </button>
+            )}
+          </>
         ) : (
           // Timestamp notes anchor to the player's position, which doesn't
           // exist for an episode that plays outside the app — every note would
@@ -442,7 +474,21 @@ export function EpisodeDetail() {
         </div>
       )}
 
-      {canTranscribe && transcript && (
+      {episode?.sourceUrl && transcribeError && !canTranscribe && (
+        <div className="mx-5 mt-4 flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-surface p-3 md:mx-0">
+          <p className="text-[13px] text-text-secondary">📝 {transcribeError}</p>
+          <button
+            type="button"
+            onClick={handleFetchYoutubeTranscript}
+            disabled={youtubeTranscriptLoading}
+            className="shrink-0 rounded-lg bg-bg-surface-alt px-3 py-1.5 text-xs font-medium text-text-primary hover:text-accent disabled:opacity-50"
+          >
+            {youtubeTranscriptLoading ? "Retrying…" : "Try again"}
+          </button>
+        </div>
+      )}
+
+      {(canTranscribe || episode?.sourceUrl) && transcript && (
         <div className="mx-5 mt-4 md:mx-0">
           <TranscriptView segments={transcript} onClear={() => clearTranscript(episode.id)} />
         </div>
