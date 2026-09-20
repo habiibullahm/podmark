@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useEpisodesStore } from "../store/useEpisodesStore";
 import { useNotesStore } from "../store/useNotesStore";
 import { useSettingsStore } from "../store/useSettingsStore";
@@ -12,6 +12,7 @@ import { SectionHeader } from "../components/SectionHeader";
 
 const GOAL_STEP = 5;
 const RESEND_COOLDOWN_SEC = 60;
+const RESEND_COOLDOWN_KEY = "podmark-magic-link-cooldown";
 
 function SyncIndicator() {
   const phase = useSyncStore((s) => s.phase);
@@ -42,19 +43,29 @@ function AccountSection() {
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const [cooldown, setCooldown] = useState(0);
+  const [cooldown, setCooldown] = useState(() => {
+    try {
+      return Math.max(0, Math.ceil((Number(localStorage.getItem(RESEND_COOLDOWN_KEY)) - Date.now()) / 1000));
+    } catch {
+      return 0;
+    }
+  });
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const interval = window.setInterval(() => {
+      setCooldown((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [cooldown]);
 
   const startCooldown = () => {
     setCooldown(RESEND_COOLDOWN_SEC);
-    const interval = setInterval(() => {
-      setCooldown((c) => {
-        if (c <= 1) {
-          clearInterval(interval);
-          return 0;
-        }
-        return c - 1;
-      });
-    }, 1000);
+    try {
+      localStorage.setItem(RESEND_COOLDOWN_KEY, String(Date.now() + RESEND_COOLDOWN_SEC * 1000));
+    } catch {
+      // Storage can be unavailable in privacy-restricted browsers.
+    }
   };
 
   const handleSendLink = async () => {

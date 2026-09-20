@@ -45,7 +45,13 @@ export const useAuthStore = create<AuthState>()(() => ({
       email,
       options: { emailRedirectTo: window.location.origin },
     });
-    return { error: error?.message ?? null };
+    if (!error) return { error: null };
+    if (error.code === "over_email_send_rate_limit" || error.status === 429) {
+      return {
+        error: "Email send limit reached. Wait before requesting another magic link, then try again.",
+      };
+    }
+    return { error: error.message };
   },
   signOut: async () => {
     if (!supabase) return;
