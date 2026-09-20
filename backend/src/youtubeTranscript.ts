@@ -10,7 +10,7 @@
 // reliably from home/Render/Railway/Fly but **will fail on Vercel serverless**
 // unless a proxy is configured (see @hallelx/youtube-transcript proxy docs).
 
-import { YouTubeTranscriptApi } from "@hallelx/youtube-transcript";
+import { WebshareProxyConfig, YouTubeTranscriptApi } from "@hallelx/youtube-transcript";
 import type { ServiceResult } from "./summarize.js";
 import { extractVideoId } from "./youtube.js";
 
@@ -29,7 +29,16 @@ export interface YouTubeTranscriptOutput {
   segments: YouTubeTranscriptSegment[];
 }
 
-const api = new YouTubeTranscriptApi();
+const api = new YouTubeTranscriptApi(
+  process.env.WEBSHARE_PROXY_USERNAME && process.env.WEBSHARE_PROXY_PASSWORD
+    ? {
+        proxyConfig: new WebshareProxyConfig({
+          proxyUsername: process.env.WEBSHARE_PROXY_USERNAME,
+          proxyPassword: process.env.WEBSHARE_PROXY_PASSWORD,
+        }),
+      }
+    : undefined,
+);
 
 export async function fetchYouTubeTranscript(
   input: YouTubeTranscriptInput,
@@ -73,6 +82,13 @@ export async function fetchYouTubeTranscript(
     }
 
     console.error("YouTube transcript fetch failed:", videoId, message);
-    return { status: 502, body: { error: "Couldn't fetch this video's transcript. YouTube may be blocking the request." } };
+    return {
+      status: 503,
+      body: {
+        error: process.env.WEBSHARE_PROXY_USERNAME
+          ? "YouTube transcript service is temporarily unavailable. Try again later."
+          : "YouTube blocks transcript requests from this server. Configure a residential proxy, then try again.",
+      },
+    };
   }
 }

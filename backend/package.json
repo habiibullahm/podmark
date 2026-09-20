@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@hallelx/youtube-transcript": "^0.2.0",
-    "jose": "^6.2.12"
+    "jose": "^6.2.12",
+    "undici": "^7.29.1"
   }
 }
