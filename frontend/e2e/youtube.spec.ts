@@ -157,10 +157,10 @@ test.describe("YouTube episodes", () => {
     await expect(page.getByRole("button", { name: /Add Timestamp Note/ })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Play" })).toHaveCount(0);
 
-    // And no legitimate way to get the video's content, so the app doesn't
-    // offer a summary it can't ground — no button, no transcript prompt.
+    // Transcript retrieval is the supported path for getting the video's
+    // content; AI summarization remains unavailable until a transcript exists.
+    await expect(page.getByRole("button", { name: "Get Transcript" })).toBeVisible();
     await expect(page.getByRole("button", { name: /AI Summarize/ })).toHaveCount(0);
-    await expect(page.getByText(/transcript/i)).toHaveCount(0);
   });
 
   test("adding a video clears a previous search error, and searching clears the add card", async ({

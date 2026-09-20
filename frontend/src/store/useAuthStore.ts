@@ -57,6 +57,14 @@ export const useAuthStore = create<AuthState>()(() => ({
 }));
 
 if (supabase) {
+  void supabase.auth.getSession().then(({ data: { session } }) => {
+    useAuthStore.setState({
+      session,
+      user: session?.user ?? null,
+      status: session ? "signedIn" : "signedOut",
+    });
+  });
+
   supabase.auth.onAuthStateChange((event, session) => {
     if (event === "SIGNED_OUT") {
       stopSync();
