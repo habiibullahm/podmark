@@ -14,6 +14,8 @@ import { WebshareProxyConfig, YouTubeTranscriptApi } from "@hallelx/youtube-tran
 import type { ServiceResult } from "./summarize.js";
 import { extractVideoId } from "./youtube.js";
 
+const EXTERNAL_TRANSCRIPT_URL = "https://getyoutubetranscript.com/api/v1/transcript";
+
 export interface YouTubeTranscriptInput {
   url?: unknown;
 }
@@ -40,6 +42,28 @@ const api = new YouTubeTranscriptApi(
     : undefined,
 );
 
+async function fetchExternalTranscript(videoId: string, apiKey: string): Promise<string> {
+  const response = await fetch(
+    `${EXTERNAL_TRANSCRIPT_URL}?v=${encodeURIComponent(videoId)}`,
+    { headers: { Authorization: `Bearer ${apiKey}` } },
+  );
+
+  if (!response.ok) {
+    throw new Error(`External transcript provider returned ${response.status}.`);
+  }
+
+  const payload: unknown = await response.json();
+  const transcript =
+    typeof payload === "object" && payload !== null && "data" in payload
+      ? (payload.data as { transcript?: unknown } | null)?.transcript
+      : undefined;
+
+  if (typeof transcript !== "string" || !transcript.trim()) {
+    throw new Error("External transcript provider returned no transcript.");
+  }
+
+  return transcript.trim();
+}
 export async function fetchYouTubeTranscript(
   input: YouTubeTranscriptInput,
 ): Promise<ServiceResult<YouTubeTranscriptOutput>> {
@@ -55,6 +79,15 @@ export async function fetchYouTubeTranscript(
   }
 
   try {
+    const externalApiKey = process.env.GETYOUTUBETRANSCRIPT_API_KEY;
+    if (externalApiKey) {
+      const text = await fetchExternalTranscript(videoId, externalApiKey);
+      return {
+        status: 200,
+        body: { videoId, segments: [{ start: 0, end: 0, text }] },
+      };
+    }
+
     const transcript = await api.fetch(videoId, { languages: ["en"] });
 
     const segments: YouTubeTranscriptSegment[] = transcript.snippets.map((s) => ({
