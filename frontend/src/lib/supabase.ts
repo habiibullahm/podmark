@@ -19,6 +19,7 @@ export const supabase: SupabaseClient | null =
     ? createClient(supabaseUrl, supabaseAnonKey, {
         auth: {
           flowType: "pkce",
+          detectSessionInUrl: false,
           persistSession: true,
           autoRefreshToken: import.meta.env.MODE !== "test",
         },

@@ -33,10 +33,15 @@ export async function verifyUser(
 
   try {
     let payload;
-    if (env.SUPABASE_JWT_SECRET) {
+    if (env.SUPABASE_URL) {
+      try {
+        ({ payload } = await jwtVerify(token, getJwks(env.SUPABASE_URL)));
+      } catch (jwksError) {
+        if (!env.SUPABASE_JWT_SECRET) throw jwksError;
+        ({ payload } = await jwtVerify(token, new TextEncoder().encode(env.SUPABASE_JWT_SECRET)));
+      }
+    } else if (env.SUPABASE_JWT_SECRET) {
       ({ payload } = await jwtVerify(token, new TextEncoder().encode(env.SUPABASE_JWT_SECRET)));
-    } else if (env.SUPABASE_URL) {
-      ({ payload } = await jwtVerify(token, getJwks(env.SUPABASE_URL)));
     } else {
       return null;
     }

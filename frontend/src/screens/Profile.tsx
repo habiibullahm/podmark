@@ -36,10 +36,16 @@ function SyncIndicator() {
 
 function AccountSection() {
   const status = useAuthStore((s) => s.status);
+  const authError = useAuthStore((s) => s.authError);
   const user = useAuthStore((s) => s.user);
   const signIn = useAuthStore((s) => s.signIn);
+  const signInWithPassword = useAuthStore((s) => s.signInWithPassword);
+  const signUp = useAuthStore((s) => s.signUp);
   const signOut = useAuthStore((s) => s.signOut);
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [method, setMethod] = useState<"login" | "createAccount" | "magicLink">("login");
+  const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -82,6 +88,30 @@ function AccountSection() {
     startCooldown();
   };
 
+  const changeMethod = (nextMethod: typeof method) => {
+    setMethod(nextMethod);
+    setError(null);
+    setSent(false);
+    setNeedsEmailConfirmation(false);
+    setPassword("");
+  };
+
+  const handlePasswordSubmit = async () => {
+    if (!email.trim() || !password || sending) return;
+    setSending(true);
+    setError(null);
+    const result = method === "createAccount"
+      ? await signUp(email.trim(), password)
+      : await signInWithPassword(email.trim(), password);
+    setSending(false);
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+    setPassword("");
+    setNeedsEmailConfirmation(result.needsEmailConfirmation);
+  };
+
   if (!isSupabaseConfigured) {
     return (
       <div className="mt-6 mb-2">
@@ -90,6 +120,17 @@ function AccountSection() {
           <p className="text-[13px] text-text-secondary">
             Accounts aren't set up for this deployment yet — your library stays on this device only.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === "loading") {
+    return (
+      <div className="mt-6 mb-2">
+        <SectionHeader title="Account" />
+        <div className="mx-5 rounded-2xl border border-border bg-bg-surface p-4 md:mx-0">
+          <p className="text-[13px] text-text-secondary">Verifying sign-in…</p>
         </div>
       </div>
     );
@@ -120,7 +161,14 @@ function AccountSection() {
     <div className="mt-6 mb-2">
       <SectionHeader title="Account" />
       <div className="mx-5 space-y-3 rounded-2xl border border-border bg-bg-surface p-4 md:mx-0">
-        {sent ? (
+        <div className="grid grid-cols-3 rounded-xl bg-bg-surface-alt p-1 text-xs font-semibold">
+          <button type="button" onClick={() => changeMethod("login")} className={`rounded-lg px-2 py-2 ${method === "login" ? "bg-bg-surface text-text-primary" : "text-text-tertiary"}`}>Login</button>
+          <button type="button" onClick={() => changeMethod("createAccount")} className={`rounded-lg px-2 py-2 ${method === "createAccount" ? "bg-bg-surface text-text-primary" : "text-text-tertiary"}`}>Create account</button>
+          <button type="button" onClick={() => changeMethod("magicLink")} className={`rounded-lg px-2 py-2 ${method === "magicLink" ? "bg-bg-surface text-text-primary" : "text-text-tertiary"}`}>Magic link</button>
+        </div>
+        {needsEmailConfirmation ? (
+          <p role="status" className="text-[13px] text-text-secondary">Check your email and open the confirmation link to finish creating your account.</p>
+        ) : sent ? (
           <p className="text-[13px] text-text-secondary">
             Check your email and open the link <span className="font-medium text-text-primary">on this device</span>{" "}
             — the sign-in link only works in the browser that requested it.
@@ -130,30 +178,42 @@ function AccountSection() {
             Sign in with a magic link to sync your library across devices.
           </p>
         )}
-        <div className="flex gap-2">
+        <form className="space-y-2" onSubmit={(event) => { event.preventDefault(); method === "magicLink" ? void handleSendLink() : void handlePasswordSubmit(); }}>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSendLink()}
             placeholder="you@example.com"
+            autoComplete="email"
+            required
             className="min-w-0 flex-1 rounded-xl border border-border bg-bg-surface-alt px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none"
           />
+          {method !== "magicLink" && (
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              autoComplete={method === "createAccount" ? "new-password" : "current-password"}
+              required
+              className="w-full rounded-xl border border-border bg-bg-surface-alt px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none"
+            />
+          )}
           <button
-            type="button"
-            onClick={handleSendLink}
-            disabled={!email.trim() || sending || cooldown > 0}
-            className="shrink-0 rounded-xl bg-accent px-3.5 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            type="submit"
+            disabled={!email.trim() || sending || (method === "magicLink" ? cooldown > 0 : !password)}
+            className="w-full rounded-xl bg-accent px-3.5 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
             {sending
-              ? "Sending…"
-              : cooldown > 0
+              ? method === "magicLink" ? "Sending…" : method === "createAccount" ? "Creating account…" : "Signing in…"
+              : method === "magicLink" && cooldown > 0
                 ? `Resend in ${cooldown}s`
-                : sent
+                : method === "magicLink" && sent
                   ? "Resend link"
-                  : "Send magic link"}
+                  : method === "magicLink" ? "Send magic link" : method === "createAccount" ? "Create account" : "Sign in"}
           </button>
-        </div>
+        </form>
+        {authError && <p className="text-xs text-red-400">{authError}</p>}
         {error && <p className="text-xs text-red-400">{error}</p>}
       </div>
     </div>
