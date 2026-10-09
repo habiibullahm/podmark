@@ -1,0 +1,14 @@
+**/node_modules
+**/dist
+build
+.git
+.github
+.env
+.env.*
+*.local
+.vercel
+playwright-report
+test-results
+blob-report
+**/.cache
+*.log
