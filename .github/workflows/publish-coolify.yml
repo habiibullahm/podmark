@@ -7,20 +7,29 @@ on:
     branches: [master]
   workflow_dispatch:
 
+# A newer push to the same ref supersedes an in-flight run — except on master,
+# where every merged commit must finish publishing its own SHA-tagged image.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
 permissions:
   contents: read
-  packages: write
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
-      - run: npm ci
+      - run: npm ci --no-audit --no-fund
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build
@@ -29,35 +38,106 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
       - name: Compile deployment backend
         run: ./node_modules/.bin/tsc -p tsconfig.deploy.json
-      - name: Smoke-test web and API server
+      - name: Smoke + security tests (source)
         run: node tests/deployment-smoke.mjs
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - name: E2E tests (desktop + mobile Chrome)
+        run: npm run test:e2e -- --workers=2
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: frontend/playwright-report
+          retention-days: 7
+
+  image:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      # Only the test script's dependency (jose) is needed on the runner.
+      - run: npm ci --no-audit --no-fund
+      # Plain `docker build` uses the runner's built-in BuildKit, so there is
+      # no moby/buildkit pull from Docker Hub (the cause of the earlier
+      # timeout); the base-image pull is retried for the same reason.
+      - name: Pull base image (with retry)
+        run: |
+          for attempt in 1 2 3; do
+            docker pull node:22-bookworm-slim && exit 0
+            echo "Pull failed (attempt $attempt), retrying..."; sleep $((attempt * 10))
+          done
+          exit 1
+      - name: Build image
+        run: |
+          docker build \
+            --build-arg VITE_SUPABASE_URL="${{ vars.VITE_SUPABASE_URL }}" \
+            --build-arg VITE_SUPABASE_ANON_KEY="${{ vars.VITE_SUPABASE_ANON_KEY }}" \
+            --label org.opencontainers.image.revision="$GITHUB_SHA" \
+            --tag "$IMAGE:$GITHUB_SHA" .
+      - name: Start container
+        run: |
+          docker run -d --name podmark -p 3000:3000 \
+            -e SUPABASE_JWT_SECRET=podmark-smoke-test-secret-not-used-anywhere-real \
+            -e RATE_LIMIT_SUMMARIZE_PER_USER_HOUR=2 \
+            -e RATE_LIMIT_YT_TRANSCRIPT_PER_HOUR=3 \
+            "$IMAGE:$GITHUB_SHA"
+      - name: Wait for Docker HEALTHCHECK
+        run: |
+          for i in $(seq 1 30); do
+            status=$(docker inspect -f '{{.State.Health.Status}}' podmark)
+            echo "health: $status"
+            [ "$status" = healthy ] && exit 0
+            sleep 2
+          done
+          docker logs podmark; exit 1
+      - name: Smoke + security tests (container)
+        run: node tests/deployment-smoke.mjs
+        env:
+          SMOKE_BASE_URL: http://127.0.0.1:3000
+      - name: Container checks (non-root, graceful stop, size)
+        run: |
+          test "$(docker exec podmark id -un)" = node
+          docker stats --no-stream podmark
+          start=$(date +%s); docker stop -t 15 podmark; elapsed=$(( $(date +%s) - start ))
+          echo "stopped in ${elapsed}s"; test "$elapsed" -lt 10
+          docker images "$IMAGE"
+      - name: Container logs
+        if: always()
+        run: docker logs podmark || true
+      - name: Push to GHCR
         if: github.event_name != 'pull_request'
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile
-          platforms: linux/amd64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ github.sha }}
-          build-args: |
-            VITE_SUPABASE_URL=${{ vars.VITE_SUPABASE_URL }}
-            VITE_SUPABASE_ANON_KEY=${{ vars.VITE_SUPABASE_ANON_KEY }}
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker tag "$IMAGE:$GITHUB_SHA" "$IMAGE:latest"
+          docker push "$IMAGE:$GITHUB_SHA"
+          docker push "$IMAGE:latest"
+          echo "Published $IMAGE:$GITHUB_SHA (rollback target) and :latest" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    needs: image
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
       - name: Trigger Coolify (when configured)
-        if: github.event_name != 'pull_request'
         env:
           COOLIFY_WEBHOOK: ${{ secrets.COOLIFY_WEBHOOK }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
         run: |
           if [ -n "$COOLIFY_WEBHOOK" ] && [ -n "$COOLIFY_TOKEN" ]; then
-            curl --fail --show-error --silent --request POST "$COOLIFY_WEBHOOK" \
+            curl --fail --show-error --silent --retry 3 --request POST "$COOLIFY_WEBHOOK" \
               --header "Authorization: Bearer $COOLIFY_TOKEN"
           else
             echo "Coolify webhook not configured; image published, manual redeploy required."

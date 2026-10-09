@@ -6,7 +6,23 @@ This deployment **does not require a database on the VPS**. It serves the Vite P
 
 GitHub Actions (tests, Docker image build) -> GHCR -> Coolify Docker Image -> VPS (port 3000) -> Traefik HTTPS. Coolify does not build source on the 4 GB VPS.
 
-Endpoints: `GET /healthz`, `POST /api/youtube`, `POST /api/summarize`, `POST /api/transcribe`, and static PWA assets. Paid AI endpoints continue to **require a verified Supabase session**.
+Endpoints: `GET /healthz`, `POST /api/youtube`, `POST /api/youtube-transcript`, `POST /api/summarize`, `POST /api/transcribe`, and static PWA assets — the same set as `api/*.ts` on Vercel. Paid AI endpoints continue to **require a verified Supabase session**.
+
+### Abuse protection
+
+All `/api/*` routes are rate-limited in memory (single container). Paid routes check the session first, then a per-user, per-IP and global hourly budget, so anonymous traffic can never spend provider credits or drain another user's quota. Over-limit requests get `429` with `Retry-After`. Defaults can be tuned in Coolify without a rebuild:
+
+| Variable | Default | Scope |
+|---|---|---|
+| `RATE_LIMIT_API_PER_MIN` | 120 | every `/api/*` request, per IP |
+| `RATE_LIMIT_YOUTUBE_PER_MIN` | 60 | `/api/youtube`, per IP |
+| `RATE_LIMIT_YT_TRANSCRIPT_PER_HOUR` | 30 | `/api/youtube-transcript`, per IP (open to signed-out users, as on Vercel) |
+| `RATE_LIMIT_SUMMARIZE_PER_USER_HOUR` | 20 | `/api/summarize`, per user |
+| `RATE_LIMIT_TRANSCRIBE_PER_USER_HOUR` | 6 | `/api/transcribe`, per user |
+| `RATE_LIMIT_PAID_PER_IP_HOUR` | 40 | both paid routes, per IP |
+| `RATE_LIMIT_PAID_GLOBAL_HOUR` | 150 | both paid routes, whole server |
+
+`TRUST_PROXY=1` is set in the image: the client IP is the right-most `X-Forwarded-For` hop written by Coolify's proxy. Never publish container port 3000 directly on the host, or clients could spoof that header.
 
 ## 1. GitHub configuration
 
@@ -59,6 +75,9 @@ Leave container ports private; expose the public site through the Coolify Traefi
 | `GROQ_MODEL` | Optional summary fallback | Defaults in backend |
 | `SUPABASE_URL` | ES256/JWKS JWT validation | Use same Supabase project as frontend |
 | `SUPABASE_JWT_SECRET` | Legacy HS256 JWT validation | Do not set a guessed value |
+| `GETYOUTUBETRANSCRIPT_API_KEY` | Optional YouTube transcript provider | Server-only secret |
+| `WEBSHARE_PROXY_USERNAME` / `WEBSHARE_PROXY_PASSWORD` | Optional residential proxy for YouTube transcripts | Server-only secret |
+| `RATE_LIMIT_*` | Optional | See *Abuse protection* |
 | `PORT` | Optional | Defaults to 3000 |
 
 For session verification, configure the JWT setting appropriate to the Supabase signing algorithm. If ES256, set `SUPABASE_URL`; for legacy HS256, use its proper JWT secret (optionally `SUPABASE_URL` for JWKS-first / HS256-fallback behavior). Never put the Supabase service-role key into the frontend or this deployment.
@@ -73,12 +92,26 @@ Once the Coolify Docker Image resource exists, obtain its deployment webhook and
 
 For stronger reproducibility, deploy and retain the image's immutable SHA tag, not only `latest`.
 
+### CI pipeline
+
+`.github/workflows/publish-coolify.yml` runs three jobs:
+
+1. **test** — typecheck, lint, frontend build, smoke/security tests against the Node server, Playwright e2e (desktop + mobile Chrome).
+2. **image** — builds the Docker image, starts it, waits for the Docker `HEALTHCHECK`, re-runs the smoke/security suite **against the container**, and checks it runs as non-root and stops gracefully. Only on `master` does it push `:<sha>` and `:latest` to GHCR.
+3. **deploy** — `master` only: calls the Coolify webhook if configured.
+
+Pull requests never push images or deploy.
+
+### Rollback
+
+Every `master` commit publishes an immutable `ghcr.io/habiibullahm/podmark:<commit-sha>` (listed in the run summary). To roll back, set the Coolify resource's image tag to a previous SHA and redeploy; set it back to `latest` to resume automatic deploys.
+
 ## 5. Verification checklist
 
 1. Coolify shows **Healthy** on `/healthz`.
 2. `curl -i https://podmark.habiibullahm.my.id/healthz` returns 200 JSON.
 3. `curl -I https://podmark.habiibullahm.my.id/` returns 200 HTML.
-4. `POST /api/youtube` with invalid URL returns a controlled 400.
+4. `POST /api/youtube` and `POST /api/youtube-transcript` with an invalid URL return a controlled 400.
 5. Unauthenticated `POST /api/summarize` returns **401**, not a billed provider call.
 6. Login via Supabase and confirm a valid session.
 7. Test summary and transcription with a small, authorized episode, then inspect logs without exposing tokens.
@@ -94,9 +127,12 @@ npm ci
 npm run typecheck
 npm run build
 ./node_modules/.bin/tsc -p tsconfig.deploy.json
-node server/index.mjs
-# in another terminal:
-curl -i http://localhost:3000/healthz
+node tests/deployment-smoke.mjs   # starts the server itself; no provider is called
+
+# or against a container:
+docker build -t podmark:local .
+docker run -d --name podmark-smoke -p 3000:3000   -e SUPABASE_JWT_SECRET=podmark-smoke-test-secret-not-used-anywhere-real   -e RATE_LIMIT_SUMMARIZE_PER_USER_HOUR=2 -e RATE_LIMIT_YT_TRANSCRIPT_PER_HOUR=3 podmark:local
+SMOKE_BASE_URL=http://127.0.0.1:3000 node tests/deployment-smoke.mjs
 ```
 
 The legacy Vercel setup remains unchanged: Vercel still builds `frontend/dist` and discovers `api/*.ts` as functions.

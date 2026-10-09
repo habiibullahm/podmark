@@ -10,6 +10,8 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+# Compiled backend for the Docker/Coolify server (tsconfig.deploy.json)
+/build
 *.local
 .env
 .env.*

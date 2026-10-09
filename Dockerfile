@@ -16,13 +16,18 @@ ENV VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
 RUN npm run build && ./node_modules/.bin/tsc -p tsconfig.deploy.json
 
 FROM node:22-bookworm-slim AS runtime
+LABEL org.opencontainers.image.source="https://github.com/habiibullahm/podmark" \
+      org.opencontainers.image.description="PodMark PWA + API server"
 WORKDIR /app
-ENV NODE_ENV=production PORT=3000
+# TRUST_PROXY: the container is only reachable through Coolify's proxy, so the
+# right-most X-Forwarded-For hop is the real client (used for rate limits).
+ENV NODE_ENV=production PORT=3000 TRUST_PROXY=1
 
 COPY package.json package-lock.json ./
 COPY frontend/package.json ./frontend/package.json
 COPY backend/package.json ./backend/package.json
-RUN npm ci --omit=dev --no-audit --no-fund
+# Only the backend's runtime deps — the frontend ships as static files.
+RUN npm ci --omit=dev --workspace=backend --no-audit --no-fund && npm cache clean --force
 
 COPY --from=build /app/frontend/dist ./frontend/dist
 COPY --from=build /app/build ./build
