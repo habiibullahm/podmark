@@ -1,6 +1,8 @@
 name: Publish PodMark for Coolify
 
 on:
+  pull_request:
+    branches: [master]
   push:
     branches: [master]
   workflow_dispatch:
@@ -21,10 +23,17 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
+      - run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
       - name: Compile deployment backend
         run: ./node_modules/.bin/tsc -p tsconfig.deploy.json
+      - name: Smoke-test web and API server
+        run: node tests/deployment-smoke.mjs
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -34,7 +43,7 @@ jobs:
           context: .
           file: Dockerfile
           platforms: linux/amd64
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           tags: |
             ghcr.io/${{ github.repository }}:latest
             ghcr.io/${{ github.repository }}:${{ github.sha }}
@@ -42,6 +51,7 @@ jobs:
             VITE_SUPABASE_URL=${{ vars.VITE_SUPABASE_URL }}
             VITE_SUPABASE_ANON_KEY=${{ vars.VITE_SUPABASE_ANON_KEY }}
       - name: Trigger Coolify (when configured)
+        if: github.event_name != 'pull_request'
         env:
           COOLIFY_WEBHOOK: ${{ secrets.COOLIFY_WEBHOOK }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
