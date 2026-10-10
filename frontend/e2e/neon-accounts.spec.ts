@@ -10,6 +10,8 @@ import { NEON_TEST_AUTH_URL as AUTH, NEON_TEST_DATA_API_URL as DATA } from "../p
 
 const TABLES = ["episodes", "notes", "freeform_notes", "ai_summaries", "folders", "settings", "activity", "progress", "transcripts"];
 const USER = { id: "user-demo-1", email: "demo@example.com", name: "", emailVerified: true, createdAt: "2026-10-10T00:00:00.000Z", updatedAt: "2026-10-10T00:00:00.000Z" };
+const USER_B = { ...USER, id: "user-demo-2", email: "other@example.com" };
+type FakeUser = typeof USER;
 
 function fakeJwt(sub: string): string {
   const part = (value: object) => Buffer.from(JSON.stringify(value)).toString("base64url");
@@ -21,11 +23,17 @@ interface FakeNeon {
   jwt: string;
   dataRequests: Request[];
   signedIn: boolean;
+  // Whose session get-session reports (sign-in picks it by email).
+  user: FakeUser;
+  // Data API writes answer 500, so pushes fail and keys stay dirty.
+  failWrites: boolean;
+  // Neon Auth unreachable (network error), e.g. offline.
+  authDown: boolean;
 }
 
 async function fakeNeon(page: Page, { signedIn = false, rejectPassword = false } = {}): Promise<FakeNeon> {
   const origin = new URL(page.url() === "about:blank" ? "http://localhost:5174" : page.url()).origin;
-  const state: FakeNeon = { jwt: fakeJwt(USER.id), dataRequests: [], signedIn };
+  const state: FakeNeon = { jwt: fakeJwt(USER.id), dataRequests: [], signedIn, user: USER, failWrites: false, authDown: false };
   const cors = {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Credentials": "true",
@@ -34,13 +42,14 @@ async function fakeNeon(page: Page, { signedIn = false, rejectPassword = false }
     "Access-Control-Expose-Headers": "set-auth-jwt",
   };
   const session = () => ({
-    session: { id: "sess-1", token: "opaque-session-token", userId: USER.id, expiresAt: new Date(Date.now() + 7 * 864e5).toISOString(), createdAt: USER.createdAt, updatedAt: USER.updatedAt },
-    user: USER,
+    session: { id: "sess-1", token: "opaque-session-token", userId: state.user.id, expiresAt: new Date(Date.now() + 7 * 864e5).toISOString(), createdAt: USER.createdAt, updatedAt: USER.updatedAt },
+    user: state.user,
   });
 
   await page.route(`${AUTH}/**`, async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname.replace("/neondb/auth", "");
+    if (state.authDown) return route.abort("internetdisconnected");
     if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
     const json = (status: number, body: unknown, extra: Record<string, string> = {}) =>
       route.fulfill({ status, headers: { ...cors, ...extra }, contentType: "application/json", body: JSON.stringify(body) });
@@ -50,8 +59,10 @@ async function fakeNeon(page: Page, { signedIn = false, rejectPassword = false }
     }
     if (path === "/sign-in/email" || path === "/sign-up/email") {
       if (rejectPassword) return json(401, { code: "INVALID_EMAIL_OR_PASSWORD", message: "Invalid email or password" });
+      state.user = request.postDataJSON()?.email === USER_B.email ? USER_B : USER;
+      state.jwt = fakeJwt(state.user.id);
       state.signedIn = true;
-      return json(200, { redirect: false, token: "opaque-session-token", user: USER });
+      return json(200, { redirect: false, token: "opaque-session-token", user: state.user });
     }
     if (path === "/sign-out") {
       state.signedIn = false;
@@ -65,6 +76,9 @@ async function fakeNeon(page: Page, { signedIn = false, rejectPassword = false }
     const request = route.request();
     if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
     state.dataRequests.push(request);
+    if (state.failWrites && request.method() === "POST") {
+      return route.fulfill({ status: 500, headers: cors, contentType: "application/json", body: JSON.stringify({ message: "down" }) });
+    }
     return route.fulfill({ status: request.method() === "POST" ? 201 : 200, headers: cors, contentType: "application/json", body: "[]" });
   });
 
@@ -73,9 +87,9 @@ async function fakeNeon(page: Page, { signedIn = false, rejectPassword = false }
 
 const tableOf = (request: Request) => new URL(request.url()).pathname.split("/").pop() ?? "";
 
-async function signIn(page: Page) {
+async function signIn(page: Page, user: FakeUser = USER) {
   await page.goto("/#/profile");
-  await page.getByPlaceholder("you@example.com").fill(USER.email);
+  await page.getByPlaceholder("you@example.com").fill(user.email);
   await page.getByPlaceholder("Password").fill("correct horse battery staple");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
 }
@@ -171,5 +185,161 @@ test.describe("Accounts (Neon Auth + Data API)", () => {
 
     await expect(page.getByText("Mocked insight")).toBeVisible();
     expect(summarizeAuth).toBe(`Bearer ${neon.jwt}`);
+  });
+});
+
+// What this browser has persisted for the account guard and sync.
+async function localState(page: Page) {
+  return page.evaluate(() => {
+    const read = (key: string) => {
+      try {
+        return JSON.parse(localStorage.getItem(key) ?? "null");
+      } catch {
+        return null;
+      }
+    };
+    const dirty = (read("podmark-sync-dirty") ?? {}) as Record<string, string[]>;
+    return {
+      owner: localStorage.getItem("podmark-account-owner"),
+      episodeIds: ((read("podmark-episodes")?.state?.episodes ?? []) as { id: string }[]).map((e) => e.id),
+      dirtyCount: Object.values(dirty).reduce((n, keys) => n + keys.length, 0),
+      aiSummaries: (read("podmark-notes")?.state?.aiSummaries ?? {}) as Record<string, string[]>,
+    };
+  });
+}
+
+// Every record id/episode_id uploaded by these Data API requests.
+function postedIds(requests: Request[]): string[] {
+  return requests
+    .filter((r) => r.method() === "POST")
+    .flatMap((r) => {
+      const body = r.postDataJSON() as Record<string, unknown> | Record<string, unknown>[];
+      return (Array.isArray(body) ? body : [body]).map((row) => String(row.id ?? row.episode_id ?? ""));
+    })
+    .filter(Boolean);
+}
+
+test.describe("Account data isolation", () => {
+  test("sign-out wipes the library, unsynced changes and the owner record", async ({ page }) => {
+    const neon = await fakeNeon(page);
+    neon.failWrites = true; // keep the first merge's uploads pending
+    await signIn(page);
+    await expect(page.getByText(`Signed in as ${USER.email}`)).toBeVisible();
+    await expect.poll(async () => (await localState(page)).dirtyCount).toBeGreaterThan(0);
+    expect((await localState(page)).owner).toBe(USER.id);
+
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await expect(page.getByPlaceholder("you@example.com")).toBeVisible();
+    expect(await localState(page)).toMatchObject({ owner: null, episodeIds: [], dirtyCount: 0 });
+  });
+
+  test("the next account never receives the previous user's unsynced data", async ({ page }) => {
+    const neon = await fakeNeon(page);
+    neon.failWrites = true;
+    await signIn(page);
+    await expect.poll(async () => (await localState(page)).dirtyCount).toBeGreaterThan(0);
+    const previousIds = (await localState(page)).episodeIds;
+    expect(previousIds.length).toBeGreaterThan(0);
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await expect(page.getByPlaceholder("you@example.com")).toBeVisible();
+
+    neon.failWrites = false;
+    const before = neon.dataRequests.length;
+    await signIn(page, USER_B);
+    await expect(page.getByText(`Signed in as ${USER_B.email}`)).toBeVisible();
+    await expect(page.getByText("Synced just now")).toBeVisible();
+    expect(postedIds(neon.dataRequests.slice(before)).filter((id) => previousIds.includes(id))).toEqual([]);
+    expect((await localState(page)).owner).toBe(USER_B.id);
+  });
+
+  test("a different account's session on this device wipes local data before syncing", async ({ page }) => {
+    const neon = await fakeNeon(page);
+    await signIn(page);
+    await expect(page.getByText("Synced just now")).toBeVisible();
+    const previousIds = (await localState(page)).episodeIds;
+    expect(previousIds.length).toBeGreaterThan(0);
+
+    // The session now belongs to someone else (e.g. A's expired and B signed
+    // in from another tab) — no sign-out ever ran in this tab.
+    neon.user = USER_B;
+    neon.jwt = fakeJwt(USER_B.id);
+    const before = neon.dataRequests.length;
+    await page.reload();
+    await expect(page.getByText(`Signed in as ${USER_B.email}`)).toBeVisible();
+    await expect(page.getByText("Synced just now")).toBeVisible();
+    expect(postedIds(neon.dataRequests.slice(before)).filter((id) => previousIds.includes(id))).toEqual([]);
+    expect(await localState(page)).toMatchObject({ owner: USER_B.id, episodeIds: [] });
+  });
+
+  test("a session that expired while away wipes the library on the next visit", async ({ page }) => {
+    const neon = await fakeNeon(page);
+    await signIn(page);
+    await expect(page.getByText("Synced just now")).toBeVisible();
+    expect((await localState(page)).episodeIds.length).toBeGreaterThan(0);
+
+    neon.signedIn = false; // expired or revoked server-side
+    await page.reload();
+    await expect(page.getByPlaceholder("you@example.com")).toBeVisible();
+    await expect.poll(async () => (await localState(page)).owner).toBeNull();
+    expect((await localState(page)).episodeIds).toEqual([]);
+  });
+
+  test("Neon Auth being unreachable is not treated as an expired session", async ({ page }) => {
+    const neon = await fakeNeon(page);
+    await signIn(page);
+    await expect(page.getByText("Synced just now")).toBeVisible();
+    const ids = (await localState(page)).episodeIds;
+
+    neon.authDown = true;
+    await page.reload();
+    await expect(page.getByPlaceholder("you@example.com")).toBeVisible();
+    await page.waitForTimeout(500);
+    expect(await localState(page)).toMatchObject({ owner: USER.id, episodeIds: ids });
+
+    neon.authDown = false;
+    await page.reload();
+    await expect(page.getByText(`Signed in as ${USER.email}`)).toBeVisible();
+    await expect(page.getByText("Synced just now")).toBeVisible();
+  });
+
+  test("an AI summary that returns after sign-out is discarded", async ({ page }) => {
+    await fakeNeon(page);
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    await page.route("**/api/summarize", async (route) => {
+      await held;
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ bullets: ["Late insight"] }) });
+    });
+    await signIn(page);
+    await expect(page.getByText("Synced just now")).toBeVisible();
+    await page.goto("/#/episode/ep-1");
+    await page.getByRole("button", { name: "AI Summarize Episode" }).click();
+    await expect(page.getByText("Summarizing…")).toBeVisible();
+
+    await page.goto("/#/profile");
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await expect(page.getByPlaceholder("you@example.com")).toBeVisible();
+
+    const response = page.waitForResponse("**/api/summarize");
+    release();
+    await response;
+    await page.waitForTimeout(300);
+    expect((await localState(page)).aiSummaries).toEqual({});
+  });
+
+  test("the daily AI limit message from the server is shown", async ({ page }) => {
+    await fakeNeon(page);
+    await page.route("**/api/summarize", (route) =>
+      route.fulfill({
+        status: 429,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Daily limit reached (5 AI requests per day). Try again tomorrow." }),
+      }),
+    );
+    await signIn(page);
+    await expect(page.getByText(`Signed in as ${USER.email}`)).toBeVisible();
+    await page.goto("/#/episode/ep-1");
+    await page.getByRole("button", { name: "AI Summarize Episode" }).click();
+    await expect(page.getByText("Daily limit reached (5 AI requests per day). Try again tomorrow.")).toBeVisible();
   });
 });

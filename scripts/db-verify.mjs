@@ -88,9 +88,33 @@ try {
     const nosub = await upsert(t, s.row);
     ok(`${t}: no sub claim cannot write`, Boolean(nosub.err), nosub.err ?? "wrote!");
   }
+
+  // Daily AI limit (0002_ai_usage.sql): only consume_ai_quota() may write.
+  await as(A);
+  const remaining = [];
+  for (let i = 0; i < 6; i++) {
+    const r = await run("select consume_ai_quota() n");
+    remaining.push(r.err ?? r.rows?.[0]?.n);
+  }
+  ok("ai_usage: 5 requests allowed per day, then null", JSON.stringify(remaining) === "[4,3,2,1,0,null]", JSON.stringify(remaining));
+  const countA = await run("select 1 from ai_usage");
+  ok("ai_usage: not readable directly", countA.err === "42501", countA.err ?? "readable!");
+  const resetA = await run("update ai_usage set requests = 0");
+  ok("ai_usage: count cannot be reset directly", resetA.err === "42501", resetA.err ?? "updated!");
+  const insA = await run("insert into ai_usage (day, requests) values (current_date + 1, 0)");
+  ok("ai_usage: rows cannot be inserted directly", insA.err === "42501", insA.err ?? "inserted!");
+  await as(B);
+  const firstB = await run("select consume_ai_quota() n");
+  ok("ai_usage: counted per user", firstB.rows?.[0]?.n === 4, firstB.msg ?? JSON.stringify(firstB.rows));
+  await as(null);
+  const anonQuota = await run("select consume_ai_quota() n");
+  ok("ai_usage: anonymous cannot call consume_ai_quota", anonQuota.err === "42501", anonQuota.err ?? "allowed!");
+  await as("");
+  const noSubQuota = await run("select consume_ai_quota() n");
+  ok("ai_usage: no sub claim cannot consume", Boolean(noSubQuota.err), noSubQuota.err ?? "consumed!");
 } finally {
   await c.query("reset role");
-  for (const t of Object.keys(T)) await c.query(`delete from ${t} where user_id in ($1,$2)`, [A, B]);
+  for (const t of [...Object.keys(T), "ai_usage"]) await c.query(`delete from ${t} where user_id in ($1,$2)`, [A, B]);
   console.log(`\n${pass} passed, ${fail} failed (test rows cleaned up)`);
   await c.end();
   process.exitCode = fail ? 1 : 0;

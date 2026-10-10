@@ -68,7 +68,7 @@ npm run dev        # http://localhost:5173, hot reload
 `npm run dev` never runs your local `api/` or `backend/`. Test server changes with, in order:
 
 1. `npm run test:api`: the real handlers with mock requests and locally signed JWTs. Fast, no network, no keys. Add a case in `tests/api.test.mjs` for new behavior.
-2. `vercel dev --listen 3001` (after `vercel link`): app + your local functions on http://localhost:3001. Needs `NEON_AUTH_URL` and the provider keys you want to test in the root `.env`. Sensitive keys can't be pulled from Vercel, so use your own.
+2. `vercel dev --listen 3001` (after `vercel link`): app + your local functions on http://localhost:3001. Needs `NEON_AUTH_URL`, `VITE_NEON_DATA_API_URL` (daily limit) and the provider keys you want to test in the root `.env`. Sensitive keys can't be pulled from Vercel, so use your own.
 3. The PR's preview deployment, which runs exactly what will ship.
 
 ### Test
@@ -106,7 +106,7 @@ npm run test:e2e:ui                                                             
 
 `api/summarize.ts` needs `SUMOPOD_API_KEY` (optionally `SUMOPOD_MODEL`, default `deepseek-v4-flash` — model access is restricted per key, check what's available on yours). SumoPod (`ai.sumopod.com`) is an OpenAI-compatible chat completions gateway; it doesn't expose an audio transcription endpoint, so `api/transcribe.ts` still needs `GROQ_API_KEY` for Whisper. For local `vercel dev`, `vercel env pull .env.local --environment=development` fetches the non-sensitive variables; sensitive keys are never pulled, so add your own to the root `.env`. YouTube lookup needs no key.
 
-**Accounts (Neon).** Optional — without these, the app runs fully signed-out on local `localStorage` data, and `/api/summarize` / `/api/transcribe` answer 401 (they require a signed-in user). Accounts use Neon Auth (managed Better Auth) for sign-in and the Neon Data API (PostgREST) for sync, with Row Level Security keyed on the JWT's `sub`. To enable accounts on a Neon branch:
+**Accounts (Neon).** Optional — without these, the app runs fully signed-out on local `localStorage` data, and the paid endpoints (`/api/summarize`, `/api/transcribe`, `/api/youtube-transcript`) answer 401 (they require a signed-in user). Accounts use Neon Auth (managed Better Auth) for sign-in and the Neon Data API (PostgREST) for sync, with Row Level Security keyed on the JWT's `sub`. To enable accounts on a Neon branch:
 
 1. In the Neon Console (or `neon` CLI), enable **Auth** and the **Data API** on the branch. Keep email/password on. Magic link is built but hidden in the UI (`MAGIC_LINK_ENABLED` in `frontend/src/screens/Profile.tsx`) until a custom SMTP provider is configured; Neon's shared sender is unreliable. Add the deployed origin as a trusted domain (`neon neon-auth domain add https://…`).
 2. Apply the schema with the branch owner's connection string, then check RLS (the check writes and deletes rows for two fake user ids only). CI does this automatically on every push to `main` when the `NEON_DATABASE_URL` GitHub secret is set. By hand:
@@ -115,7 +115,8 @@ npm run test:e2e:ui                                                             
    DATABASE_URL="<owner connection string>" npm run db:verify
    ```
 3. Set frontend env vars (Vite, public — the browser calls these directly): `VITE_NEON_AUTH_URL`, `VITE_NEON_DATA_API_URL`.
-4. Set the server env var `NEON_AUTH_URL` (same value as `VITE_NEON_AUTH_URL`). `/api/summarize` and `/api/transcribe` verify the session JWT against its JWKS locally — Ed25519 only, issuer and audience pinned, and Neon's anonymous tokens rejected.
+4. Set the server env var `NEON_AUTH_URL` (same value as `VITE_NEON_AUTH_URL`). The paid endpoints verify the session JWT against its JWKS locally — Ed25519 only, issuer and audience pinned, and Neon's anonymous tokens rejected.
+5. **Daily limit:** each signed-in user gets 5 paid requests per UTC day (summaries, transcriptions and YouTube transcripts combined). The count lives in Postgres (`consume_ai_quota()`, migration `0002_ai_usage.sql`) and the functions reach it through the Data API with the user's own JWT, so no database credentials are on the server. They use `NEON_DATA_API_URL`, falling back to `VITE_NEON_DATA_API_URL`; if neither is set, or the count can't be recorded, paid calls fail closed with 503. Change the limit in the migration (and `DAILY_AI_LIMIT` in `backend/src/quota.ts`).
 
 The owner connection string is only for migrations: it lives in the `NEON_DATABASE_URL` GitHub Actions secret and never goes into the app, Vercel, or a `VITE_` variable.
 
@@ -138,7 +139,8 @@ Vercel environment variables (Production, Preview and Development):
 | Name | Kind | Purpose |
 |---|---|---|
 | `VITE_NEON_AUTH_URL`, `VITE_NEON_DATA_API_URL` | public, build-time | Neon Auth / Data API endpoints for the browser |
-| `NEON_AUTH_URL` | server | JWT verification on `/api/summarize` and `/api/transcribe` |
+| `NEON_AUTH_URL` | server | JWT verification on the paid endpoints |
+| `NEON_DATA_API_URL` | server, optional | Daily-limit RPC; defaults to `VITE_NEON_DATA_API_URL` |
 | `SUMOPOD_API_KEY`, `GROQ_API_KEY` | secret | AI summaries (SumoPod, Groq fallback) and transcription (Groq) |
 | `GETYOUTUBETRANSCRIPT_API_KEY`, `WEBSHARE_PROXY_USERNAME`/`PASSWORD` | secret, optional | YouTube transcripts |
 

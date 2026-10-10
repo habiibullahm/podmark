@@ -25,6 +25,7 @@
 // simpler rule the plan calls for explicitly: server wins if a row exists,
 // otherwise the local settings get uploaded.
 import { db } from "./neon";
+import { accountEpoch } from "./accountScope";
 import { useEpisodesStore } from "../store/useEpisodesStore";
 import { useNotesStore } from "../store/useNotesStore";
 import { useFoldersStore } from "../store/useFoldersStore";
@@ -327,10 +328,11 @@ async function pushFolders() {
   }
 }
 
-async function pullEpisodes(isFirstMerge: boolean) {
+async function pullEpisodes(isFirstMerge: boolean, epoch: number) {
   if (!db) return;
   const { data, error } = await db.from("episodes").select("*");
   if (error) throw error;
+  if (epoch !== accountEpoch()) return; // account changed mid-request
   applyingRemote = true;
   try {
     useEpisodesStore.setState((state) => {
@@ -356,10 +358,11 @@ async function pullEpisodes(isFirstMerge: boolean) {
   }
 }
 
-async function pullNotes(isFirstMerge: boolean) {
+async function pullNotes(isFirstMerge: boolean, epoch: number) {
   if (!db) return;
   const { data, error } = await db.from("notes").select("*");
   if (error) throw error;
+  if (epoch !== accountEpoch()) return; // account changed mid-request
   applyingRemote = true;
   try {
     useNotesStore.setState((state) => {
@@ -385,10 +388,11 @@ async function pullNotes(isFirstMerge: boolean) {
   }
 }
 
-async function pullFolders(isFirstMerge: boolean) {
+async function pullFolders(isFirstMerge: boolean, epoch: number) {
   if (!db) return;
   const { data, error } = await db.from("folders").select("*");
   if (error) throw error;
+  if (epoch !== accountEpoch()) return; // account changed mid-request
   applyingRemote = true;
   try {
     useFoldersStore.setState((state) => {
@@ -431,10 +435,11 @@ async function pushFreeformNotes() {
   for (const id of keys) clearDirty("freeform_notes", id);
 }
 
-async function pullFreeformNotes(isFirstMerge: boolean) {
+async function pullFreeformNotes(isFirstMerge: boolean, epoch: number) {
   if (!db) return;
   const { data, error } = await db.from("freeform_notes").select("*");
   if (error) throw error;
+  if (epoch !== accountEpoch()) return; // account changed mid-request
   applyingRemote = true;
   try {
     useNotesStore.setState((state) => {
@@ -474,10 +479,11 @@ async function pushActivity() {
   for (const key of keys) clearDirty("activity", key);
 }
 
-async function pullActivity(isFirstMerge: boolean) {
+async function pullActivity(isFirstMerge: boolean, epoch: number) {
   if (!db) return;
   const { data, error } = await db.from("activity").select("*");
   if (error) throw error;
+  if (epoch !== accountEpoch()) return; // account changed mid-request
   applyingRemote = true;
   try {
     useActivityStore.setState((state) => {
@@ -515,10 +521,11 @@ async function pushProgress() {
   for (const id of keys) clearDirty("progress", id);
 }
 
-async function pullProgress(isFirstMerge: boolean) {
+async function pullProgress(isFirstMerge: boolean, epoch: number) {
   if (!db) return;
   const { data, error } = await db.from("progress").select("*");
   if (error) throw error;
+  if (epoch !== accountEpoch()) return; // account changed mid-request
   applyingRemote = true;
   try {
     useProgressStore.setState((state) => {
@@ -558,10 +565,11 @@ async function pushTranscripts() {
   for (const id of keys) clearDirty("transcripts", id);
 }
 
-async function pullTranscripts(isFirstMerge: boolean) {
+async function pullTranscripts(isFirstMerge: boolean, epoch: number) {
   if (!db) return;
   const { data, error } = await db.from("transcripts").select("*");
   if (error) throw error;
+  if (epoch !== accountEpoch()) return; // account changed mid-request
   applyingRemote = true;
   try {
     useTranscriptStore.setState((state) => {
@@ -606,10 +614,11 @@ async function pushAiSummaries() {
   for (const id of keys) clearDirty("ai_summaries", id);
 }
 
-async function pullAiSummaries(isFirstMerge: boolean) {
+async function pullAiSummaries(isFirstMerge: boolean, epoch: number) {
   if (!db) return;
   const { data, error } = await db.from("ai_summaries").select("*");
   if (error) throw error;
+  if (epoch !== accountEpoch()) return; // account changed mid-request
   applyingRemote = true;
   try {
     useNotesStore.setState((state) => {
@@ -660,10 +669,11 @@ async function pushSettings() {
   clearDirty("settings", SETTINGS_KEY);
 }
 
-async function pullSettings() {
+async function pullSettings(epoch: number) {
   if (!db) return;
   const { data, error } = await db.from("settings").select("*").maybeSingle();
   if (error) throw error;
+  if (epoch !== accountEpoch()) return; // account changed mid-request
   if (dirty.settings.has(SETTINGS_KEY)) return;
   applyingRemote = true;
   try {
@@ -684,17 +694,17 @@ async function pullSettings() {
 
 // ---- lifecycle -----------------------------------------------------------
 
-async function pullAll(isFirstMerge: boolean) {
+async function pullAll(isFirstMerge: boolean, epoch: number) {
   await Promise.all([
-    pullEpisodes(isFirstMerge),
-    pullNotes(isFirstMerge),
-    pullFolders(isFirstMerge),
-    pullFreeformNotes(isFirstMerge),
-    pullAiSummaries(isFirstMerge),
-    pullSettings(),
-    pullActivity(isFirstMerge),
-    pullProgress(isFirstMerge),
-    pullTranscripts(isFirstMerge),
+    pullEpisodes(isFirstMerge, epoch),
+    pullNotes(isFirstMerge, epoch),
+    pullFolders(isFirstMerge, epoch),
+    pullFreeformNotes(isFirstMerge, epoch),
+    pullAiSummaries(isFirstMerge, epoch),
+    pullSettings(epoch),
+    pullActivity(isFirstMerge, epoch),
+    pullProgress(isFirstMerge, epoch),
+    pullTranscripts(isFirstMerge, epoch),
   ]);
 }
 
@@ -826,9 +836,11 @@ export async function startSync(userId: string) {
   updatePendingCount();
 
   const isFirstMerge = localStorage.getItem(mergedFlagKey(userId)) === null;
+  const epoch = accountEpoch();
   useSyncStore.setState({ phase: "syncing" });
   try {
-    await pullAll(isFirstMerge);
+    await pullAll(isFirstMerge, epoch);
+    if (epoch !== accountEpoch()) return; // signed out / switched during the pull
     if (isFirstMerge) localStorage.setItem(mergedFlagKey(userId), "1");
     await flushAllDirty();
     useSyncStore.setState({ phase: "synced", lastSyncedAt: Date.now() });
@@ -848,6 +860,16 @@ export async function startSync(userId: string) {
       })
       .finally(updatePendingCount);
   }, RETRY_INTERVAL_MS);
+}
+
+// Forgets every pending local change and cached tombstone. Called when this
+// device's data is wiped for an account change: a key left dirty would
+// otherwise be pushed — with the previous user's cached row values — into
+// whichever account signs in next.
+export function resetSyncState() {
+  dirty = Object.fromEntries(TABLES.map((t) => [t, new Set<string>()])) as Record<TableName, Set<string>>;
+  saveDirty(dirty);
+  for (const rows of Object.values(pendingDeleteRows)) rows.clear();
 }
 
 export function stopSync() {

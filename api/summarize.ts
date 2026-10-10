@@ -3,7 +3,8 @@
 // the actual work is in backend/.
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { summarize } from "../backend/src/summarize.js";
-import { verifyUser } from "../backend/src/auth.js";
+import { bearerToken, verifyUser } from "../backend/src/auth.js";
+import { aiQuota } from "../backend/src/quota.js";
 
 export const config = { maxDuration: 60 };
 
@@ -14,14 +15,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // Summaries spend SumoPod credits per call, so this endpoint requires a
-  // verified Supabase session — anyone on the public URL could otherwise
-  // exhaust the account's credits with no rate limit.
+  // verified Neon Auth session and counts against the user's daily limit
+  // (backend/src/quota.ts) — otherwise anyone could exhaust the credits.
   const userId = await verifyUser(req.headers.authorization, process.env);
   if (!userId) {
     res.status(401).json({ error: "Sign in to use AI summary." });
     return;
   }
 
-  const { status, body } = await summarize(req.body, process.env);
+  const { status, body } = await summarize(req.body, process.env, aiQuota(bearerToken(req.headers.authorization) ?? "", process.env));
   res.status(status).json(body);
 }

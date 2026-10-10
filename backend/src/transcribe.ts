@@ -1,3 +1,6 @@
+import { asRecord, INVALID_BODY, MAX_URL_CHARS, tooLong } from "./input.js";
+import type { QuotaCheck } from "./quota.js";
+
 export interface TranscribeInput {
   audioUrl?: unknown;
 }
@@ -130,21 +133,30 @@ async function resolveAudioUrl(value: string): Promise<ServiceResult<{ audioUrl:
   return { status: 422, body: { error: "Podcast audio redirect limit exceeded." } };
 }
 
+// consumeQuota runs once the audio URL is validated, right before the paid
+// Groq call, so a rejected request never counts against the daily limit.
 export async function transcribeEpisode(
-  input: TranscribeInput,
+  body: unknown,
   env: TranscribeEnv,
+  consumeQuota?: QuotaCheck,
 ): Promise<ServiceResult<{ segments: TranscriptSegment[] }>> {
+  const input: TranscribeInput | null = asRecord(body);
+  if (!input) return INVALID_BODY;
   if (!env.GROQ_API_KEY) {
     return { status: 503, body: { error: "Transcription isn't configured yet — no API key set." } };
   }
 
   const sourceUrl = typeof input.audioUrl === "string" ? input.audioUrl.trim() : "";
   if (!sourceUrl) return { status: 400, body: { error: "Missing audio URL." } };
+  if (sourceUrl.length > MAX_URL_CHARS) return tooLong("Audio URL", MAX_URL_CHARS);
 
   const resolved = await resolveAudioUrl(sourceUrl);
   if (resolved.status !== 200 || !("audioUrl" in resolved.body)) {
     return { status: resolved.status, body: resolved.body as { error: string } };
   }
+
+  const denied = await consumeQuota?.();
+  if (denied) return denied;
 
   const form = new FormData();
   form.append("model", MODEL);

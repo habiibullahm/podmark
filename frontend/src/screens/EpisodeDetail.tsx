@@ -20,6 +20,7 @@ import { useTranscriptStore } from "../store/useTranscriptStore";
 import { useSettingsStore } from "../store/useSettingsStore";
 import { isAccountsConfigured } from "../lib/neon";
 import { fetchYoutubeTranscript } from "../lib/youtubeTranscriptApi";
+import { accountEpoch } from "../lib/accountScope";
 import { buildEpisodeMarkdown, downloadMarkdownFile } from "../lib/export";
 
 export function EpisodeDetail() {
@@ -164,12 +165,15 @@ const [youtubeTranscriptLoading, setYoutubeTranscriptLoading] = useState(false);
   const handleFetchYoutubeTranscript = async () => {
     if (!episode?.sourceUrl || youtubeTranscriptLoading) return;
     setYoutubeTranscriptLoading(true);
+    const epoch = accountEpoch();
     try {
       const segments = await fetchYoutubeTranscript(episode.sourceUrl);
+      if (epoch !== accountEpoch()) return; // account changed while waiting
       const store = useTranscriptStore.getState();
       store.transcripts[episode.id] = segments;
       useTranscriptStore.setState({ transcripts: { ...store.transcripts } });
     } catch (err) {
+      if (epoch !== accountEpoch()) return;
       const message = err instanceof Error ? err.message : "Failed to fetch transcript.";
       const store = useTranscriptStore.getState();
       store.transcribeErrors[episode.id] = message;

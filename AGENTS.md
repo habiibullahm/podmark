@@ -91,7 +91,8 @@ Keep the subject under 72 characters. Include a body only when it adds context a
 - **`SUMOPOD_API_KEY`** — primary provider for AI summarization (optional `SUMOPOD_MODEL`, default `deepseek-v4-flash`).
 - **`GROQ_API_KEY`** — required for transcription (Whisper); also the summarization fallback when SumoPod is unset or fails. Add provider keys to Vercel Production env before deploying.
 - **`VITE_NEON_AUTH_URL`** and **`VITE_NEON_DATA_API_URL`** — Neon Auth and Data API endpoints for the frontend (public).
-- **`NEON_AUTH_URL`** — server-side, for verifying session JWTs on the paid AI endpoints.
+- **`NEON_AUTH_URL`** — server-side, for verifying session JWTs on the paid endpoints (summarize, transcribe, YouTube transcript).
+- **`NEON_DATA_API_URL`** — optional server-side override for the daily-limit RPC (defaults to `VITE_NEON_DATA_API_URL`). Paid endpoints allow 5 requests/user/day (`0002_ai_usage.sql`).
 - All secrets go through Vercel environment variables or `.env.local` (which is gitignored). Never commit secrets.
 - `README.md` (Environment section) documents the required variables.
 

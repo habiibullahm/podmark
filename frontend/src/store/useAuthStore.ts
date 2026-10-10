@@ -7,7 +7,8 @@ import { useSettingsStore } from "./useSettingsStore";
 import { useActivityStore } from "./useActivityStore";
 import { useProgressStore } from "./useProgressStore";
 import { useTranscriptStore } from "./useTranscriptStore";
-import { startSync, stopSync } from "../lib/sync";
+import { resetSyncState, startSync, stopSync } from "../lib/sync";
+import { bumpAccountEpoch, getDataOwner, setDataOwner } from "../lib/accountScope";
 
 export type AuthStatus = "loading" | "signedOut" | "signedIn";
 
@@ -35,14 +36,33 @@ function resetAllDataStores() {
   useTranscriptStore.setState({ transcripts: {}, transcribing: {}, transcribeErrors: {} });
 }
 
+// Removes an account's data from this device: sync stops, in-flight results
+// are invalidated (accountScope's epoch), pending sync changes are dropped,
+// every data store is emptied, and the owner record is cleared.
+function clearAccountData() {
+  stopSync();
+  bumpAccountEpoch();
+  resetSyncState();
+  resetAllDataStores();
+  setDataOwner(null);
+}
+
 // Single place that reacts to a session change, whether it came from this
 // tab's own sign-in/out or from the adapter's listener. The adapter only
 // broadcasts SIGNED_IN/SIGNED_OUT to *other* tabs (via localStorage
 // `storage` events), so actions below must call this themselves.
+//
+// Isolation rules: a session ending (sign-out, expiry, sign-out in another
+// tab) wipes the account's local data; a session for a *different* user than
+// the one whose data is on this device wipes it before syncing, so it is
+// never merged into the new account. Only guest data (no owner) is merged.
 function applySession(session: AuthSession | null, keepAuthError = false) {
+  const owner = getDataOwner();
   if (!session) {
     stopSync();
-    if (useAuthStore.getState().status === "signedIn") resetAllDataStores();
+    if (owner || useAuthStore.getState().status === "signedIn") clearAccountData();
+  } else if (owner && owner !== session.user.id) {
+    clearAccountData();
   }
   useAuthStore.setState((state) => ({
     session,
@@ -50,7 +70,27 @@ function applySession(session: AuthSession | null, keepAuthError = false) {
     status: session ? "signedIn" : "signedOut",
     authError: keepAuthError ? state.authError : null,
   }));
-  if (session?.user) startSync(session.user.id);
+  if (session?.user) {
+    setDataOwner(session.user.id);
+    startSync(session.user.id);
+  }
+}
+
+// The adapter reports INITIAL_SESSION null both when the session is gone
+// (expired, revoked) and when Neon Auth couldn't be reached (offline, 5xx).
+// Only the first may wipe the owner's local data — offline, an unsynced edit
+// would be lost for nothing. Asks again past the adapter's cache and treats
+// anything but a clean "no session" answer as "can't tell".
+async function sessionIsGone(): Promise<boolean> {
+  if (!auth) return true;
+  try {
+    const { data, error } = await auth.getBetterAuthInstance().getSession({
+      fetchOptions: { headers: { "X-Force-Fetch": "true" } },
+    });
+    return !error && !data?.session;
+  } catch {
+    return false;
+  }
 }
 
 export const useAuthStore = create<AuthState>()(() => ({
@@ -123,12 +163,17 @@ export const useAuthStore = create<AuthState>()(() => ({
   },
   signOut: async () => {
     if (!auth) return;
-    const { error } = await auth.signOut();
-    if (error) {
-      useAuthStore.setState({ authError: `Sign-out failed: ${error.message}` });
-      return;
-    }
+    const { error } = await auth.signOut().catch((err: unknown) => ({
+      error: err instanceof Error ? err : new Error("network error"),
+    }));
+    // Clear this device either way — on a shared browser, a failed network
+    // call must not leave the library behind.
     applySession(null);
+    if (error) {
+      useAuthStore.setState({
+        authError: `Signed out on this device, but the server didn't confirm (${error.message}).`,
+      });
+    }
   },
 }));
 
@@ -150,6 +195,14 @@ if (auth) {
   // neon_auth_session_verifier param — and afterwards relays sign-in/out from
   // other tabs. A session that can't be resolved settles on signedOut.
   auth.onAuthStateChange((event, session) => {
+    if (event === "INITIAL_SESSION" && !session && getDataOwner()) {
+      void sessionIsGone().then((gone) => {
+        if (gone) applySession(null, true);
+        // Unreachable: show signed-out, keep the owner's data for next time.
+        else useAuthStore.setState({ session: null, user: null, status: "signedOut" });
+      });
+      return;
+    }
     applySession(session, event === "INITIAL_SESSION");
   });
 }

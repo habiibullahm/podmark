@@ -20,6 +20,11 @@ function getJwks(authUrl: string): JWTVerifyGetKey {
   return keySet;
 }
 
+// The raw token from an `Authorization: Bearer …` header, if any.
+export function bearerToken(authorizationHeader: string | undefined | null): string | null {
+  return authorizationHeader?.match(/^Bearer\s+(.+)$/i)?.[1] ?? null;
+}
+
 // Returns the authenticated user's id (the JWT's `sub`), or null if the
 // header is missing, malformed, unverifiable, or auth isn't configured for
 // this environment. Callers should treat null as "reject the request" —
@@ -28,7 +33,7 @@ export async function verifyUser(
   authorizationHeader: string | undefined | null,
   env: AuthEnv,
 ): Promise<string | null> {
-  const token = authorizationHeader?.match(/^Bearer\s+(.+)$/i)?.[1];
+  const token = bearerToken(authorizationHeader);
   if (!env.NEON_AUTH_URL) {
     console.warn("auth: NEON_AUTH_URL is not set; rejecting");
     return null;
