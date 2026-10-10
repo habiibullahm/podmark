@@ -24,11 +24,11 @@ One Vercel project deploys all of it: `vercel.json` builds `frontend/` and serve
 
 Trunk-based, full policy in [docs/BRANCHING_STRATEGY.md](docs/BRANCHING_STRATEGY.md):
 
-1. `git switch master && git pull --ff-only`, then `git switch -c feat/<topic>` (or `fix/`, `chore/`, `docs/`).
+1. `git switch main && git pull --ff-only`, then `git switch -c feat/<topic>` (or `fix/`, `chore/`, `docs/`).
 2. Build it locally with `npm run dev` (below) and run the checks.
-3. Push and open a PR to `master`. CI runs every check and Vercel builds a preview deployment.
+3. Push and open a PR to `main`. CI runs every check and Vercel builds a preview deployment.
 4. After the owner approves: squash merge. Vercel deploys production; CI applies Neon migrations.
-5. Delete the branch; start the next change from fresh `master`.
+5. Delete the branch; start the next change from fresh `main`.
 
 ## Local development
 
@@ -109,7 +109,7 @@ npm run test:e2e:ui                                                             
 **Accounts (Neon).** Optional — without these, the app runs fully signed-out on local `localStorage` data, and `/api/summarize` / `/api/transcribe` answer 401 (they require a signed-in user). Accounts use Neon Auth (managed Better Auth) for sign-in and the Neon Data API (PostgREST) for sync, with Row Level Security keyed on the JWT's `sub`. To enable accounts on a Neon branch:
 
 1. In the Neon Console (or `neon` CLI), enable **Auth** and the **Data API** on the branch. Keep email/password on. Magic link is built but hidden in the UI (`MAGIC_LINK_ENABLED` in `frontend/src/screens/Profile.tsx`) until a custom SMTP provider is configured; Neon's shared sender is unreliable. Add the deployed origin as a trusted domain (`neon neon-auth domain add https://…`).
-2. Apply the schema with the branch owner's connection string, then check RLS (the check writes and deletes rows for two fake user ids only). CI does this automatically on every push to `master` when the `NEON_DATABASE_URL` GitHub secret is set. By hand:
+2. Apply the schema with the branch owner's connection string, then check RLS (the check writes and deletes rows for two fake user ids only). CI does this automatically on every push to `main` when the `NEON_DATABASE_URL` GitHub secret is set. By hand:
    ```bash
    DATABASE_URL="<owner connection string>" npm run db:migrate
    DATABASE_URL="<owner connection string>" npm run db:verify
@@ -128,10 +128,10 @@ Put logic in `backend/src/`, not in `api/`. A backend function takes a plain inp
 Hosting is Vercel, through its Git integration — there is no deploy script:
 
 - **Pull requests** get a preview deployment (behind Vercel Authentication).
-- **Merges to `master`** deploy production at `https://podmark-ai.vercel.app`.
+- **Merges to `main`** deploy production at `https://podmark-ai.vercel.app`.
 - **Rollback:** Vercel dashboard → Deployments → promote the previous production deployment (Instant Rollback).
 
-GitHub Actions (`.github/workflows/ci.yml`) runs typecheck, lint, build, API tests and Playwright on every PR and on `master`; on `master` it also applies Neon migrations and checks RLS.
+GitHub Actions (`.github/workflows/ci.yml`) runs typecheck, lint, build, API tests and Playwright on every PR and on `main`; on `main` it also applies Neon migrations and checks RLS.
 
 Vercel environment variables (Production, Preview and Development):
 

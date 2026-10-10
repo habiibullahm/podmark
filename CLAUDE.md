@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-PodMark is a podcast tracker and learning journal PWA (search episodes, play, take timestamped notes, AI summaries, export to Obsidian/Notion). See `AGENTS.md` for style, commit, and trunk-based branching rules (short-lived branches off `master`, no stacked PRs), `README.md` for env setup, and `docs/PRD.md` for product scope. Hosting is Vercel via its Git integration (PR previews, `master` → production); see the README's Deploy section.
+PodMark is a podcast tracker and learning journal PWA (search episodes, play, take timestamped notes, AI summaries, export to Obsidian/Notion). See `AGENTS.md` for style, commit, and trunk-based branching rules (short-lived branches off `main`, no stacked PRs), `README.md` for env setup, and `docs/PRD.md` for product scope. Hosting is Vercel via its Git integration (PR previews, `main` → production); see the README's Deploy section.
 
 ## Commands
 
@@ -22,7 +22,7 @@ DATABASE_URL=... npm run db:migrate            # apply backend/neon/migrations/ 
 DATABASE_URL=... npm run db:verify             # check RLS isolation (writes/deletes rows for two fake user ids)
 ```
 
-CI (`.github/workflows/ci.yml`) runs typecheck, lint, build, `test:api`, and `test:e2e -- --workers=2` on PRs and `master`; on push to `master` it also applies Neon migrations and verifies RLS. Deploys are not in CI: Vercel's Git integration builds a preview per PR and deploys production from `master`.
+CI (`.github/workflows/ci.yml`) runs typecheck, lint, build, `test:api`, and `test:e2e -- --workers=2` on PRs and `main`; on push to `main` it also applies Neon migrations and verifies RLS. Deploys are not in CI: Vercel's Git integration builds a preview per PR and deploys production from `main`.
 
 ## Architecture
 

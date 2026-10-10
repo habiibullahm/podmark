@@ -60,15 +60,15 @@ All commands run from the repository root. The Vercel config expects the fronten
 
 For the complete branch naming, PR lifecycle, hotfix, release, and deployment policy, see [`docs/BRANCHING_STRATEGY.md`](docs/BRANCHING_STRATEGY.md).
 
-PodMark uses **trunk-based development**. `master` is the only long-lived integration branch and must remain releasable.
+PodMark uses **trunk-based development**. `main` is the only long-lived integration branch and must remain releasable.
 
-- **Start from the trunk.** Create every `feat/*`, `fix/*`, `chore/*`, or `docs/*` branch from the latest `master`. Do not use long-lived `develop`, release, or integration branches.
+- **Start from the trunk.** Create every `feat/*`, `fix/*`, `chore/*`, or `docs/*` branch from the latest `main`. Do not use long-lived `develop`, release, or integration branches.
 - **Keep branches short-lived.** Aim to merge within one working day (at most a few days). Split large milestones into independently reviewable, working changes instead of accumulating a long-running branch.
-- **Target `master` directly.** Open small, focused PRs against `master`; avoid stacked PRs. If stacking is temporarily necessary, retarget the dependent PR to `master` as soon as its prerequisite is merged.
-- **Integrate safely.** Keep `master` buildable and the main user journeys working. Hide incomplete functionality behind feature flags or keep it inactive; do not merge broken intermediate states.
-- **Require a green PR.** Run relevant typecheck, lint, tests, and build checks. Address failing CI before merge. Do not push directly to `master`; get the repository owner's approval before merging.
-- **Deploy from trunk only.** Vercel deploys production only from `master`; PRs get preview deployments. Neon migrations run in CI only after a push/merge to `master`.
-- **Clean up promptly.** Prefer squash merge for focused PRs, delete merged feature branches, and start the next change from current `master`. Keep database changes backward-compatible when possible so frequent merges remain safe.
+- **Target `main` directly.** Open small, focused PRs against `main`; avoid stacked PRs. If stacking is temporarily necessary, retarget the dependent PR to `main` as soon as its prerequisite is merged.
+- **Integrate safely.** Keep `main` buildable and the main user journeys working. Hide incomplete functionality behind feature flags or keep it inactive; do not merge broken intermediate states.
+- **Require a green PR.** Run relevant typecheck, lint, tests, and build checks. Address failing CI before merge. Do not push directly to `main`; get the repository owner's approval before merging.
+- **Deploy from trunk only.** Vercel deploys production only from `main`; PRs get preview deployments. Neon migrations run in CI only after a push/merge to `main`.
+- **Clean up promptly.** Prefer squash merge for focused PRs, delete merged feature branches, and start the next change from current `main`. Keep database changes backward-compatible when possible so frequent merges remain safe.
 
 ## Commit & Pull Requests
 
