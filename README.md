@@ -40,7 +40,7 @@ npm run lint
 **Accounts (Neon).** Optional — without these, the app runs fully signed-out on local `localStorage` data, and `/api/summarize` / `/api/transcribe` stay open. Accounts use Neon Auth (managed Better Auth) for sign-in and the Neon Data API (PostgREST) for sync, with Row Level Security keyed on the JWT's `sub`. To enable accounts on a Neon branch:
 
 1. In the Neon Console (or `neon` CLI), enable **Auth** and the **Data API** on the branch. Keep email/password on; magic link uses Neon's shared sender until a custom SMTP provider is configured. Add the deployed origin as a trusted domain (`neon neon-auth domain add https://…`).
-2. Apply the schema with the branch owner's connection string, then check RLS (the check writes and deletes rows for two fake user ids only):
+2. Apply the schema with the branch owner's connection string, then check RLS (the check writes and deletes rows for two fake user ids only). CI does this automatically on every push to `master` when the `NEON_DATABASE_URL` secret is set — see `docs/deploy-coolify.md`. By hand:
    ```bash
    DATABASE_URL="<owner connection string>" npm run db:migrate
    DATABASE_URL="<owner connection string>" npm run db:verify

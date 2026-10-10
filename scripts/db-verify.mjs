@@ -8,6 +8,11 @@
 // Rows belong to two fixed fake user ids and are deleted at the end, so it is
 // safe to run against the live branch.
 import pg from "pg";
+
+if (!process.env.DATABASE_URL) {
+  console.error("Set DATABASE_URL to the Neon branch owner's connection string.");
+  process.exit(2);
+}
 const c = new pg.Client({ connectionString: process.env.DATABASE_URL });
 await c.connect();
 const A = "db-verify-user-a", B = "db-verify-user-b";

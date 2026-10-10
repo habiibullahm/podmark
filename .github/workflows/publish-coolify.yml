@@ -133,8 +133,38 @@ jobs:
           docker push "$IMAGE:latest"
           echo "Published $IMAGE:$GITHUB_SHA (rollback target) and :latest" >> "$GITHUB_STEP_SUMMARY"
 
-  deploy:
+  # Applies backend/neon/migrations to the Neon production branch, then runs
+  # the self-cleaning RLS check. Runs before deploy, so migrations must stay
+  # backward compatible with the image still serving (add, don't rename/drop).
+  migrate:
     needs: image
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: neon-migrate
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Apply migrations and verify RLS
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "NEON_DATABASE_URL secret not set; skipping migrations." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          npm run db:migrate
+          npm run db:verify
+          echo "Neon migrations applied; RLS check passed." >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    needs: [image, migrate]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5

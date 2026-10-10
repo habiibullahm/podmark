@@ -20,6 +20,9 @@ try {
     await client.query(readFileSync(join(dir, file), "utf8"));
     console.log(`applied ${file}`);
   }
+  // Standard PostgREST schema-cache reload. Neon's Data API was observed to
+  // pick up new tables without it; this is a harmless belt-and-braces.
+  await client.query("notify pgrst, 'reload schema'");
 } finally {
   await client.end();
 }

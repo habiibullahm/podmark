@@ -85,7 +85,19 @@ The Groq key used in an earlier PodMark environment was reported expired on Octo
 
 Add `https://podmark.habiibullahm.my.id` as a Neon Auth trusted domain on the branch: `neon neon-auth domain add https://podmark.habiibullahm.my.id --project-id <id> --branch production`.
 
-## 4. Automatic redeploy (optional)
+## 4. Automatic database migrations
+
+On every push to `master`, the **migrate** job applies `backend/neon/migrations/*.sql` to Neon and runs the RLS check (`npm run db:verify`, which writes and deletes rows for two fake user ids only) **before** Coolify redeploys. Add the Neon `production` branch owner connection string as a repository **secret** — never a variable, and never in chat or a file:
+
+```bash
+gh secret set NEON_DATABASE_URL --repo habiibullahm/podmark
+```
+
+(`gh` prompts for the value, so it stays out of shell history.) Get it with `neon connection-string production --project-id bold-salad-14698024 --database-name neondb --role-name neondb_owner`. Without the secret, the job is skipped with a note in the run summary.
+
+Migrations run while the previous image is still serving, so keep them backward compatible: add tables/columns, don't rename or drop in the same release. Every migration must be re-runnable (`if not exists`, `drop … if exists`).
+
+## 5. Automatic redeploy (optional)
 
 Once the Coolify Docker Image resource exists, obtain its deployment webhook and an access token. In GitHub repository **Actions secrets** configure `COOLIFY_WEBHOOK` and `COOLIFY_TOKEN`. The workflow triggers Coolify after publishing the image. Without these secrets, the image is still published and you can click **Redeploy** in Coolify manually.
 
@@ -93,11 +105,12 @@ For stronger reproducibility, deploy and retain the image's immutable SHA tag, n
 
 ### CI pipeline
 
-`.github/workflows/publish-coolify.yml` runs three jobs:
+`.github/workflows/publish-coolify.yml` runs four jobs:
 
 1. **test** — typecheck, lint, frontend build, Neon Auth JWT tests, smoke/security tests against the Node server, Playwright e2e (desktop + mobile Chrome).
 2. **image** — builds the Docker image, starts it, waits for the Docker `HEALTHCHECK`, re-runs the smoke/security suite **against the container**, and checks it runs as non-root and stops gracefully. Only on `master` does it push `:<sha>` and `:latest` to GHCR.
-3. **deploy** — `master` only: calls the Coolify webhook if configured.
+3. **migrate** — `master` only: applies Neon migrations and verifies RLS (needs `NEON_DATABASE_URL`).
+4. **deploy** — `master` only, after migrate: calls the Coolify webhook if configured.
 
 Pull requests never push images or deploy.
 
@@ -105,7 +118,7 @@ Pull requests never push images or deploy.
 
 Every `master` commit publishes an immutable `ghcr.io/habiibullahm/podmark:<commit-sha>` (listed in the run summary). To roll back, set the Coolify resource's image tag to a previous SHA and redeploy; set it back to `latest` to resume automatic deploys.
 
-## 5. Verification checklist
+## 6. Verification checklist
 
 1. Coolify shows **Healthy** on `/healthz`.
 2. `curl -i https://podmark.habiibullahm.my.id/healthz` returns 200 JSON.
