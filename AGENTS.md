@@ -29,14 +29,16 @@ The monorepo uses npm workspaces. Business logic lives in `backend/`; `api/` con
 
 | Command | Description |
 |---|---|
-| `npm run dev` | Start the frontend dev server (Vite) |
+| `npm run dev` | Vite on :5173; `/api/*` proxied to production (`API_PROXY_TARGET` to change, empty to disable) |
 | `npm run build` | Type-check and build the frontend |
 | `npm run typecheck` | Type-check all workspaces + API functions |
 | `npm run lint` | Run Oxlint across the repo |
 | `npm run test:e2e` | Run Playwright e2e tests (headless) |
 | `npm run test:e2e:ui` | Run Playwright tests with the UI mode |
+| `npm run test:api` | API handler + Neon JWT tests (`node:test`, no network) |
+| `vercel dev --listen 3001` | App + local `api/` functions, for testing backend changes |
 
-All commands run from the repository root. The Vercel config expects the frontend build output at `frontend/dist`.
+All commands run from the repository root. The Vercel config expects the frontend build output at `frontend/dist`. The README's **Local development** section covers setup (`frontend/.env.local`), what works locally, and which check to run for which change.
 
 ## Coding Style & Naming
 
@@ -48,10 +50,11 @@ All commands run from the repository root. The Vercel config expects the fronten
 
 ## Testing Guidelines
 
-- **Framework:** Playwright for end-to-end tests under `frontend/e2e/`.
+- **Framework:** Playwright for end-to-end tests under `frontend/e2e/`; `node:test` for API handlers and auth under `tests/`.
 - **Naming:** Test files describe the feature or flow being tested (e.g., `discover.spec.ts`).
-- **Running:** `npm run test:e2e` from the root. Test artifacts go to `frontend/test-results/` and `frontend/playwright-report/`.
-- **Scope:** No unit tests at this stage. Focus on critical user journeys: search, playback, note-taking, export.
+- **Running:** `npm run test:e2e` and `npm run test:api` from the root. Test artifacts go to `frontend/test-results/` and `frontend/playwright-report/`.
+- **Scope:** Focus e2e on critical user journeys: search, playback, note-taking, export, sign-in/sync. Add an API test for security-relevant endpoint behavior.
+- **Hermetic:** Tests never hit real Neon or paid providers — Neon and `/api/*` are mocked in Playwright, keys are stripped in API tests.
 
 ## Trunk-Based Development
 
@@ -96,5 +99,5 @@ Keep the subject under 72 characters. Include a body only when it adds context a
 
 - **State:** Zustand stores with `persist` middleware (`localStorage`, synced to Neon via the Data API when signed in).
 - **AI:** SumoPod (`deepseek-v4-flash`) for summaries with Groq (`openai/gpt-oss-120b`) as fallback; Groq `whisper-large-v3-turbo` for transcription.
-- **Auth:** Neon Auth (managed Better Auth) — email/password and magic link — with Row Level Security on every table (`backend/neon/migrations/`).
+- **Auth:** Neon Auth (managed Better Auth) — email/password (magic link built but hidden in the UI) — with Row Level Security on every table (`backend/neon/migrations/`).
 - **Deployment:** Single Vercel project. Hash routing via React Router — no SSR.
