@@ -14,7 +14,7 @@ test.describe("Episode Detail", () => {
   });
 
   test("adds a timestamp note", async ({ page }) => {
-    await page.getByRole("button", { name: "+ Add Timestamp Note" }).click();
+    await page.getByRole("button", { name: "Add Timestamp Note" }).click();
 
     const draft = page.getByPlaceholder("What's worth remembering here?");
     await draft.fill("E2E test timestamp note");
@@ -24,7 +24,7 @@ test.describe("Episode Detail", () => {
   });
 
   test("saves a key highlight", async ({ page }) => {
-    await page.getByRole("button", { name: "+ Save Key Highlight" }).click();
+    await page.getByRole("button", { name: "Save Key Highlight" }).click();
 
     const draft = page.getByPlaceholder(/Paste or type the key quote/);
     await draft.fill("E2E test highlight");
@@ -34,7 +34,7 @@ test.describe("Episode Detail", () => {
   });
 
   test("cancel discards the draft note", async ({ page }) => {
-    await page.getByRole("button", { name: "+ Add Timestamp Note" }).click();
+    await page.getByRole("button", { name: "Add Timestamp Note" }).click();
     await page.getByPlaceholder("What's worth remembering here?").fill("should not be saved");
     await page.getByRole("button", { name: "Cancel" }).click();
 
@@ -54,7 +54,7 @@ test.describe("Episode Detail", () => {
     await page.getByRole("button", { name: "AI Summarize Episode" }).click();
 
     await expect(page.getByText("AI Summary")).toBeVisible({ timeout: 3000 });
-    const insertButtons = page.getByRole("button", { name: "+ Add to notes" });
+    const insertButtons = page.getByRole("button", { name: "Add to notes" });
     await expect(insertButtons.first()).toBeVisible();
 
     await insertButtons.first().click();

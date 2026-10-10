@@ -1,5 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import {
+  ArrowLeft,
+  Check,
+  CircleAlert,
+  Clock3,
+  Download,
+  Ellipsis,
+  ExternalLink,
+  FileText,
+  Folder,
+  Lock,
+  Mic,
+  Quote,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import { useEpisodesStore } from "../store/useEpisodesStore";
 import { useFoldersStore } from "../store/useFoldersStore";
 import { usePlayer } from "../context/PlayerContext";
@@ -14,7 +30,8 @@ import { MarkdownNoteEditor } from "../components/MarkdownNoteEditor";
 import { TimestampNoteBlock } from "../components/TimestampNoteBlock";
 import { HighlightBlock } from "../components/HighlightBlock";
 import { TranscriptView } from "../components/TranscriptView";
-import { formatTime } from "../lib/format";
+import { PlayerTransport, SeekBar, SpeedButton } from "../components/PlayerControls";
+import { clampPercent, formatTime } from "../lib/format";
 import { useAuthStore } from "../store/useAuthStore";
 import { useTranscriptStore } from "../store/useTranscriptStore";
 import { useSettingsStore } from "../store/useSettingsStore";
@@ -22,11 +39,49 @@ import { isAccountsConfigured } from "../lib/neon";
 import { fetchYoutubeTranscript } from "../lib/youtubeTranscriptApi";
 import { accountEpoch } from "../lib/accountScope";
 import { buildEpisodeMarkdown, downloadMarkdownFile } from "../lib/export";
+import { useIsDesktop } from "../lib/useMediaQuery";
+import {
+  BUTTON_DANGER,
+  BUTTON_GHOST,
+  BUTTON_PRIMARY,
+  BUTTON_SECONDARY,
+  CARD,
+  ICON_BUTTON,
+  MENU,
+  MENU_ITEM,
+  PILL_BUTTON,
+} from "../lib/ui";
+
+// Inline error with a retry, used for AI summary and transcription failures.
+function RetryNotice({ icon: Icon, message, busy, onRetry }: {
+  icon: typeof Sparkles;
+  message: string;
+  busy: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-control border border-border bg-bg-surface p-3 shadow-card">
+      <p className="flex items-start gap-2 text-[13px] text-text-secondary">
+        <Icon size={16} className="mt-0.5 shrink-0 text-text-tertiary" aria-hidden="true" />
+        <span>{message}</span>
+      </p>
+      <button
+        type="button"
+        onClick={onRetry}
+        disabled={busy}
+        className="shrink-0 rounded-lg bg-bg-surface-alt px-3 py-1.5 text-xs font-semibold text-text-primary hover:text-accent disabled:opacity-50"
+      >
+        {busy ? "Retrying…" : "Try again"}
+      </button>
+    </div>
+  );
+}
 
 export function EpisodeDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const isDesktop = useIsDesktop();
   const episodes = useEpisodesStore((s) => s.episodes);
   const episode = episodes.find((e) => e.id === id);
 
@@ -65,22 +120,22 @@ export function EpisodeDetail() {
   const [draftText, setDraftText] = useState("");
   const [draftTags, setDraftTags] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
-const [youtubeTranscriptLoading, setYoutubeTranscriptLoading] = useState(false);
-  const [folderMenuOpen, setFolderMenuOpen] = useState(false);
+  const [youtubeTranscriptLoading, setYoutubeTranscriptLoading] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
-  const folderMenuRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const notesEditorRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!folderMenuOpen) return;
+    if (!menuOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (folderMenuRef.current && !folderMenuRef.current.contains(e.target as Node)) {
-        setFolderMenuOpen(false);
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [folderMenuOpen]);
+  }, [menuOpen]);
 
   // Reset per-episode draft/editor UI state whenever the route's :id changes —
   // EpisodeDetail is reused, not remounted, across /episode/:id navigations,
@@ -94,10 +149,19 @@ const [youtubeTranscriptLoading, setYoutubeTranscriptLoading] = useState(false);
     setDraftText("");
     setDraftTags([]);
     setGenerating(false);
-    setFolderMenuOpen(false);
+    setMenuOpen(false);
     setConfirmingRemove(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // The utility panel's "Quick note" lands here with the timestamp draft open.
+  useEffect(() => {
+    if (!(location.state as { quickNote?: boolean } | null)?.quickNote) return;
+    setAddingNote(true);
+    setAddingHighlight(false);
+    navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, location.state]);
 
   // Episodes with an external sourceUrl (YouTube) have no playable audio, so
   // handing them to the player would only spin the simulated timer and accrue
@@ -107,8 +171,8 @@ const [youtubeTranscriptLoading, setYoutubeTranscriptLoading] = useState(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [episode?.id]);
 
-  // "Jump to Notes" (Dashboard's Currently Learning widget) links here with
-  // a #notes hash — scroll it into view once the screen has rendered.
+  // "Jump to Notes" (Home's Continue Learning card) links here with a #notes
+  // hash — scroll it into view once the screen has rendered.
   useEffect(() => {
     if (location.hash !== "#notes") return;
     document.getElementById("notes")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -118,19 +182,15 @@ const [youtubeTranscriptLoading, setYoutubeTranscriptLoading] = useState(false);
   // loaded in the player; otherwise fall back to the last saved progress
   // (not the static mock progressSec, which the player may have long since
   // overtaken).
-  const currentPosition =
-    playerEpisode?.id === episode?.id ? positionSec : getProgressFor(episode?.id ?? "");
+  const currentPosition = playerEpisode?.id === episode?.id ? positionSec : getProgressFor(episode?.id ?? "");
 
-  const sortedNotes = useMemo(
-    () => [...notes].sort((a, b) => a.timestampSec - b.timestampSec),
-    [notes],
-  );
+  const sortedNotes = useMemo(() => [...notes].sort((a, b) => a.timestampSec - b.timestampSec), [notes]);
 
   if (!episode) {
     return (
-      <div className="p-8 text-center text-text-secondary">
+      <div className="py-16 text-center text-text-secondary">
         Episode not found.{" "}
-        <button className="text-accent" onClick={() => navigate("/")}>
+        <button className="font-semibold text-accent" onClick={() => navigate("/")}>
           Go home
         </button>
       </div>
@@ -203,374 +263,384 @@ const [youtubeTranscriptLoading, setYoutubeTranscriptLoading] = useState(false);
   const canSummarize = !episode.sourceUrl || !!transcript;
   // Audio transcription needs a real audio URL — only applies to iTunes.
   const canTranscribe = !episode.sourceUrl && !!episode.audioUrl;
-  // Both spend Groq credits, so once accounts exist they're gated behind
+  // Both spend AI credits, so once accounts exist they're gated behind
   // sign-in. Deployments without Neon Auth configured (isAccountsConfigured
   // false — no env vars set) predate accounts entirely, so both stay open
   // there rather than showing a sign-in prompt for a feature that isn't
   // wired up yet.
   const summarizeRequiresSignIn = isAccountsConfigured && authStatus !== "signedIn";
+  const isLoadedInPlayer = playerEpisode?.id === episode.id;
+  const progressPct = clampPercent(currentPosition, episode.durationSec);
+  const meta = [episode.publishedAt, episode.durationSec > 0 ? formatTime(episode.durationSec) : ""]
+    .filter(Boolean)
+    .join(" · ");
+
+  const openDraft = (kind: "note" | "highlight") => {
+    setAddingNote(kind === "note" ? (v) => !v : false);
+    setAddingHighlight(kind === "highlight" ? (v) => !v : false);
+    setDraftText("");
+  };
 
   return (
-    <div className="pb-40 md:pb-16">
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-bg-primary/95 px-4 py-3 backdrop-blur md:-mx-8 md:px-8">
-        <button type="button" onClick={() => navigate(-1)} className="text-lg text-text-secondary">
-          ←
+    <div>
+      {/* Top bar: back, export, and the options menu. */}
+      <div className="mb-5 flex items-center justify-between gap-2">
+        <button type="button" onClick={() => navigate(-1)} className={`${BUTTON_GHOST} -ml-3`} aria-label="Back">
+          <ArrowLeft size={18} aria-hidden="true" />
+          <span className="hidden sm:inline">Back</span>
         </button>
-        <p className="line-clamp-1 max-w-[240px] text-[13px] font-medium text-text-primary">
-          {episode.title}
-        </p>
-        <div className="relative" ref={folderMenuRef}>
+        <div className="flex items-center gap-1">
           <button
             type="button"
-            onClick={() => setFolderMenuOpen((v) => !v)}
-            className="text-lg text-text-secondary"
+            onClick={handleExportEpisode}
+            aria-label="Export episode as Markdown"
+            title={`Export as Markdown (${exportFormat} format)`}
+            className={`${BUTTON_GHOST}`}
           >
-            ⋯
+            <Download size={17} aria-hidden="true" />
+            <span className="hidden sm:inline">Export</span>
           </button>
-          {folderMenuOpen && (
-            <div className="absolute right-0 top-full z-20 mt-2 w-56 rounded-xl border border-border bg-bg-surface p-1.5 shadow-lg">
-              <p className="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">
-                Add to folder
-              </p>
-              {folders.length === 0 && (
-                <p className="px-2.5 py-1.5 text-xs text-text-secondary">
-                  No folders yet — create one from Library.
+          <div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label="More options"
+              aria-expanded={menuOpen}
+              className={ICON_BUTTON}
+            >
+              <Ellipsis size={20} aria-hidden="true" />
+            </button>
+            {menuOpen && (
+              <div className={`${MENU} w-60`}>
+                <p className="px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-text-tertiary">
+                  Add to folder
                 </p>
-              )}
-              {folders.map((f) => {
-                const inFolder = f.episodeIds.includes(episode.id);
-                return (
-                  <button
-                    key={f.id}
-                    type="button"
-                    onClick={() =>
-                      inFolder ? removeEpisodeFromFolder(f.id, episode.id) : addEpisodeToFolder(f.id, episode.id)
-                    }
-                    className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-sm text-text-primary hover:bg-bg-surface-alt"
-                  >
-                    <span className="truncate">📁 {f.name}</span>
-                    {inFolder && <span className="shrink-0 text-accent">✓</span>}
-                  </button>
-                );
-              })}
-              <div className="my-1 border-t border-border" />
-              <button
-                type="button"
-                onClick={() => {
-                  handleExportEpisode();
-                  setFolderMenuOpen(false);
-                }}
-                className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-sm text-text-primary hover:bg-bg-surface-alt"
-              >
-                Export episode ↗
-              </button>
-              <div className="my-1 border-t border-border" />
-              <button
-                type="button"
-                onClick={() => {
-                  setConfirmingRemove(true);
-                  setFolderMenuOpen(false);
-                }}
-                className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-sm text-red-400 hover:bg-bg-surface-alt"
-              >
-                Remove from Library
-              </button>
-            </div>
-          )}
+                {folders.length === 0 && (
+                  <p className="px-2.5 py-1.5 text-xs text-text-secondary">No folders yet — create one from Library.</p>
+                )}
+                {folders.map((f) => {
+                  const inFolder = f.episodeIds.includes(episode.id);
+                  return (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() =>
+                        inFolder ? removeEpisodeFromFolder(f.id, episode.id) : addEpisodeToFolder(f.id, episode.id)
+                      }
+                      className={`${MENU_ITEM} justify-between`}
+                    >
+                      <span className="flex min-w-0 items-center gap-2">
+                        <Folder size={15} className="shrink-0" style={{ color: f.color }} aria-hidden="true" />
+                        <span className="truncate">{f.name}</span>
+                      </span>
+                      {inFolder && <Check size={15} className="shrink-0 text-accent" aria-label="In folder" />}
+                    </button>
+                  );
+                })}
+                <div className="my-1 border-t border-border" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmingRemove(true);
+                    setMenuOpen(false);
+                  }}
+                  className={`${MENU_ITEM} text-danger`}
+                >
+                  <Trash2 size={15} aria-hidden="true" />
+                  Remove from Library
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {confirmingRemove && (
-        <div className="mx-5 mt-3 flex items-center justify-between gap-3 rounded-xl border border-red-500/40 bg-red-500/10 p-3 md:mx-0">
+        <div className="mb-5 flex items-center justify-between gap-3 rounded-control border border-danger/40 bg-danger/5 p-3">
           <p className="text-[13px] text-text-primary">
-            Remove "{episode.title}" and its {notes.length} note{notes.length === 1 ? "" : "s"}? This
-            can't be undone.
+            Remove "{episode.title}" and its {notes.length} note{notes.length === 1 ? "" : "s"}? This can't be undone.
           </p>
           <div className="flex shrink-0 gap-2">
-            <button
-              type="button"
-              onClick={() => setConfirmingRemove(false)}
-              className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-text-secondary"
-            >
+            <button type="button" onClick={() => setConfirmingRemove(false)} className={`${BUTTON_GHOST} px-2.5 py-1.5 text-xs`}>
               Cancel
             </button>
-            <button
-              type="button"
-              onClick={handleRemoveEpisode}
-              className="rounded-lg bg-red-500 px-3 py-1.5 text-xs font-semibold text-white"
-            >
+            <button type="button" onClick={handleRemoveEpisode} className={BUTTON_DANGER}>
               Remove
             </button>
           </div>
         </div>
       )}
 
-      <div className="px-5 pt-4 md:px-0 md:pt-6">
-        <div className="flex items-center gap-3">
-          <EpisodeArtwork episode={episode} className="h-10 w-10 shrink-0 rounded-lg" />
-          <div className="min-w-0">
-            <p className="line-clamp-1 text-[13px] font-medium text-text-primary">{episode.show}</p>
-            <p className="text-xs text-text-secondary">
-              {[episode.publishedAt, episode.durationSec > 0 ? formatTime(episode.durationSec) : ""]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-          </div>
-        </div>
-        <div className="mt-2.5 flex flex-wrap gap-1.5">
-          {episode.tags.map((t) => (
-            <TagChip key={t} label={t} />
-          ))}
-        </div>
-      </div>
-
-      {audioError && playerEpisode?.id === episode.id && episode.audioUrl && (
-        <div className="mx-5 mt-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-surface p-3 md:mx-0">
-          <p className="text-[13px] text-text-secondary">This episode's audio couldn't be loaded.</p>
-          <div className="flex shrink-0 items-center gap-3">
-            <button
-              type="button"
-              onClick={togglePlay}
-              className="rounded-lg bg-bg-surface-alt px-3 py-1.5 text-xs font-medium text-text-primary hover:text-accent"
-            >
-              Try again
-            </button>
-            <a
-              href={episode.audioUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs font-medium text-accent hover:text-accent/80"
-            >
-              Open source ↗
-            </a>
-          </div>
-        </div>
-      )}
-
-      <div
-        id="notes"
-        className="mt-4 flex max-w-full flex-nowrap gap-2 overflow-x-auto px-5 pb-1 no-scrollbar md:flex-wrap md:overflow-visible md:px-0"
-      >
-        {episode.sourceUrl ? (
-          <>
-            <a
-              href={episode.sourceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-bg-surface px-3.5 py-2 text-xs font-semibold text-text-primary hover:border-accent/60"
-            >
-              ▶ Watch on YouTube ↗
-            </a>
-            {!transcript && (
-              <button
-                type="button"
-                onClick={handleFetchYoutubeTranscript}
-                disabled={youtubeTranscriptLoading}
-                className={`flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-bg-surface px-3.5 py-2 text-xs font-semibold text-text-primary transition-opacity hover:border-accent/60 disabled:opacity-70 ${
-                  youtubeTranscriptLoading ? "animate-pulse" : ""
-                }`}
-              >
-                <span>📝</span>
-                <span>{youtubeTranscriptLoading ? "Fetching transcript…" : "Get Transcript"}</span>
-              </button>
-            )}
-          </>
-        ) : (
-          // Timestamp notes anchor to the player's position, which doesn't
-          // exist for an episode that plays outside the app — every note would
-          // silently claim 0:00.
-          <button
-            type="button"
-            onClick={() => {
-              setAddingNote((v) => !v);
-              setAddingHighlight(false);
-              setDraftText("");
-            }}
-            className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-bg-surface px-3.5 py-2 text-xs font-semibold text-text-primary hover:border-accent/60"
-          >
-            🕐 + Add Timestamp Note
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={() => {
-            setAddingHighlight((v) => !v);
-            setAddingNote(false);
-            setDraftText("");
-          }}
-          className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-bg-surface px-3.5 py-2 text-xs font-semibold text-text-primary hover:border-accent/60"
-        >
-          ⭐ + Save Key Highlight
-        </button>
-        {canSummarize && summarizeRequiresSignIn && (
-          <button
-            type="button"
-            onClick={() => navigate("/profile")}
-            className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-bg-surface px-3.5 py-2 text-xs font-semibold text-text-secondary hover:border-accent/60 hover:text-accent"
-          >
-            ✨ Sign in to use AI summary
-          </button>
-        )}
-        {canSummarize && !summarizeRequiresSignIn && (
-          <button
-            type="button"
-            onClick={handleSummarize}
-            disabled={generating}
-            className={`flex shrink-0 items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-3.5 py-2 text-xs font-semibold text-accent transition-opacity disabled:opacity-70 ${
-              generating ? "animate-pulse" : ""
-            }`}
-          >
-            <span className={generating ? "animate-pulse" : ""}>✨</span>
-            <span>{generating ? "Summarizing…" : "AI Summarize Episode"}</span>
-          </button>
-        )}
-        {canTranscribe && !summarizeRequiresSignIn && !transcript && (
-          <button
-            type="button"
-            onClick={handleTranscribe}
-            disabled={transcribing}
-            className={`flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-bg-surface px-3.5 py-2 text-xs font-semibold text-text-primary transition-opacity hover:border-accent/60 disabled:opacity-70 ${
-              transcribing ? "animate-pulse" : ""
-            }`}
-          >
-            <span>🎙️</span>
-            <span>{transcribing ? "Transcribing…" : "Transcribe Episode"}</span>
-          </button>
-        )}
-      </div>
-
-      {(addingNote || addingHighlight) && (
-        <div className="mx-5 mt-3 rounded-xl border border-accent/40 bg-bg-surface p-3 md:mx-0">
-          <p className="text-xs font-medium text-text-secondary">
-            {addingNote ? "New timestamp note" : "New highlight"} at{" "}
-            <span className="font-semibold text-accent">{formatTime(currentPosition)}</span>
-          </p>
-          <textarea
-            autoFocus
-            value={draftText}
-            onChange={(e) => setDraftText(e.target.value)}
-            placeholder={addingNote ? "What's worth remembering here?" : "Paste or type the key quote..."}
-            rows={2}
-            className="mt-2 w-full resize-none rounded-lg border border-border bg-bg-surface-alt px-3 py-2 text-[14px] text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none"
-          />
-          <div className="mt-2">
-            <TagInput tags={draftTags} onChange={setDraftTags} suggestions={allKnownTags} />
-          </div>
-          <div className="mt-2 flex items-center justify-end gap-2">
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setAddingNote(false);
-                  setAddingHighlight(false);
-                }}
-                className="rounded-lg px-3 py-1.5 text-xs font-medium text-text-secondary"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={addingNote ? handleAddNote : handleAddHighlight}
-                className="rounded-lg bg-accent px-3.5 py-1.5 text-xs font-semibold text-white"
-              >
-                Save
-              </button>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] lg:gap-8 xl:grid-cols-[minmax(0,400px)_minmax(0,1fr)]">
+        {/* LEFT — the episode, its player, and the learning tools. */}
+        <div className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+          <section className={`${CARD} p-4 sm:p-5`}>
+            <div className="flex gap-4">
+              <EpisodeArtwork
+                episode={episode}
+                className="h-28 w-28 shrink-0 rounded-2xl shadow-raised sm:h-32 sm:w-32"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="line-clamp-1 text-xs font-bold uppercase tracking-[0.12em] text-accent">{episode.show}</p>
+                <h1 className="mt-1 line-clamp-3 text-lg font-extrabold leading-snug tracking-tight text-text-primary sm:text-xl">
+                  {episode.title}
+                </h1>
+                {meta && <p className="mt-1 text-xs font-medium text-text-tertiary">{meta}</p>}
+                {episode.tags.length > 0 && (
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {episode.tags.map((t) => (
+                      <TagChip key={t} label={t} />
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {canTranscribe && transcribeError && (
-        <div className="mx-5 mt-4 flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-surface p-3 md:mx-0">
-          <p className="text-[13px] text-text-secondary">🎙️ {transcribeError}</p>
-          <button
-            type="button"
-            onClick={handleTranscribe}
-            disabled={transcribing}
-            className="shrink-0 rounded-lg bg-bg-surface-alt px-3 py-1.5 text-xs font-medium text-text-primary hover:text-accent disabled:opacity-50"
-          >
-            {transcribing ? "Retrying…" : "Try again"}
-          </button>
-        </div>
-      )}
-
-      {episode?.sourceUrl && transcribeError && !canTranscribe && (
-        <div className="mx-5 mt-4 flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-surface p-3 md:mx-0">
-          <p className="text-[13px] text-text-secondary">📝 {transcribeError}</p>
-          <button
-            type="button"
-            onClick={handleFetchYoutubeTranscript}
-            disabled={youtubeTranscriptLoading}
-            className="shrink-0 rounded-lg bg-bg-surface-alt px-3 py-1.5 text-xs font-medium text-text-primary hover:text-accent disabled:opacity-50"
-          >
-            {youtubeTranscriptLoading ? "Retrying…" : "Try again"}
-          </button>
-        </div>
-      )}
-
-      {(canTranscribe || episode?.sourceUrl) && transcript && (
-        <div className="mx-5 mt-4 md:mx-0">
-          <TranscriptView segments={transcript} onClear={() => clearTranscript(episode.id)} />
-        </div>
-      )}
-
-      {canSummarize && aiSummaryError && (
-        <div className="mx-5 mt-4 flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-surface p-3 md:mx-0">
-          <p className="text-[13px] text-text-secondary">
-            ✨ {aiSummaryError}
-            {aiSummary && " The summary below is from before this attempt."}
-          </p>
-          <button
-            type="button"
-            onClick={handleSummarize}
-            disabled={generating}
-            className="shrink-0 rounded-lg bg-bg-surface-alt px-3 py-1.5 text-xs font-medium text-text-primary hover:text-accent disabled:opacity-50"
-          >
-            {generating ? "Retrying…" : "Try again"}
-          </button>
-        </div>
-      )}
-
-      {canSummarize && aiSummary && (
-        <div className="mx-5 mt-4 md:mx-0">
-          <AISummaryCard
-            bullets={aiSummary}
-            onRegenerate={handleSummarize}
-            onClear={() => clearSummary(episode.id)}
-            onInsert={(bullet) => {
-              setFreeformNotes((prev) => `${prev}\n- ${bullet}`);
-              // Without this, an inserted bullet lands past the bottom of the
-              // (short, fixed-height) notes textarea with no visible change,
-              // making the button look like it did nothing.
-              requestAnimationFrame(() => {
-                notesEditorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-                const textarea = notesEditorRef.current?.querySelector("textarea");
-                if (textarea) textarea.scrollTop = textarea.scrollHeight;
-              });
-            }}
-          />
-        </div>
-      )}
-
-      <div ref={notesEditorRef} className="mx-5 mt-4 md:mx-0">
-        <MarkdownNoteEditor
-          value={freeformNotes}
-          onChange={setFreeformNotes}
-          placeholder="Write freeform Markdown notes here — bullets, headers, etc."
-        />
-      </div>
-
-      {sortedNotes.length > 0 && (
-        <div className="mx-5 mt-4 space-y-2.5 md:mx-0">
-          {sortedNotes.map((note) =>
-            note.type === "highlight" ? (
-              <HighlightBlock key={note.id} note={note} />
+            {episode.sourceUrl ? (
+              <a
+                href={episode.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`${BUTTON_PRIMARY} mt-4 w-full`}
+              >
+                <ExternalLink size={16} aria-hidden="true" />
+                Watch on YouTube
+              </a>
+            ) : isDesktop && isLoadedInPlayer ? (
+              // Desktop plays right here; on smaller screens the docked mini
+              // player below is the one set of controls.
+              <div className="mt-5 space-y-3">
+                <SeekBar />
+                <div className="flex items-center justify-between">
+                  <span className="w-12" />
+                  <PlayerTransport size="md" />
+                  <SpeedButton />
+                </div>
+              </div>
             ) : (
-              <TimestampNoteBlock key={note.id} note={note} />
-            ),
+              episode.durationSec > 0 && (
+                <div className="mt-4">
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-bg-surface-alt">
+                    <div className="h-full rounded-full bg-accent" style={{ width: `${progressPct}%` }} />
+                  </div>
+                  <p className="mt-1.5 text-xs font-medium tabular-nums text-text-tertiary">
+                    {formatTime(currentPosition)} of {formatTime(episode.durationSec)} listened
+                  </p>
+                </div>
+              )
+            )}
+          </section>
+
+          {audioError && isLoadedInPlayer && episode.audioUrl && (
+            <div className="flex items-center justify-between gap-3 rounded-control border border-border bg-bg-surface p-3 shadow-card">
+              <p className="flex items-center gap-2 text-[13px] text-text-secondary">
+                <CircleAlert size={16} className="shrink-0 text-danger" aria-hidden="true" />
+                This episode's audio couldn't be loaded.
+              </p>
+              <div className="flex shrink-0 items-center gap-3">
+                <button
+                  type="button"
+                  onClick={togglePlay}
+                  className="rounded-lg bg-bg-surface-alt px-3 py-1.5 text-xs font-semibold text-text-primary hover:text-accent"
+                >
+                  Try again
+                </button>
+                <a
+                  href={episode.audioUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-semibold text-accent hover:text-accent/80"
+                >
+                  Open source
+                </a>
+              </div>
+            </div>
+          )}
+
+          {/* AI and transcription tools. */}
+          {(canSummarize || canTranscribe || episode.sourceUrl) && (
+            <section aria-label="Learning tools" className={`${CARD} space-y-2.5 p-4`}>
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-text-tertiary">Learning tools</p>
+              {canSummarize && summarizeRequiresSignIn && (
+                <button type="button" onClick={() => navigate("/profile")} className={`${BUTTON_SECONDARY} w-full justify-start`}>
+                  <Lock size={16} aria-hidden="true" />
+                  Sign in to use AI summary
+                </button>
+              )}
+              {canSummarize && !summarizeRequiresSignIn && (
+                <button
+                  type="button"
+                  onClick={handleSummarize}
+                  disabled={generating}
+                  className={`${BUTTON_PRIMARY} w-full justify-start ${generating ? "animate-pulse" : ""}`}
+                >
+                  <Sparkles size={16} aria-hidden="true" />
+                  {generating ? "Summarizing…" : "AI Summarize Episode"}
+                </button>
+              )}
+              {canTranscribe && !summarizeRequiresSignIn && !transcript && (
+                <button
+                  type="button"
+                  onClick={handleTranscribe}
+                  disabled={transcribing}
+                  className={`${BUTTON_SECONDARY} w-full justify-start ${transcribing ? "animate-pulse" : ""}`}
+                >
+                  <Mic size={16} aria-hidden="true" />
+                  {transcribing ? "Transcribing…" : "Transcribe Episode"}
+                </button>
+              )}
+              {episode.sourceUrl && !transcript && (
+                <button
+                  type="button"
+                  onClick={handleFetchYoutubeTranscript}
+                  disabled={youtubeTranscriptLoading}
+                  className={`${BUTTON_SECONDARY} w-full justify-start ${youtubeTranscriptLoading ? "animate-pulse" : ""}`}
+                >
+                  <FileText size={16} aria-hidden="true" />
+                  {youtubeTranscriptLoading ? "Fetching transcript…" : "Get Transcript"}
+                </button>
+              )}
+              {transcript && (
+                <p className="flex items-center gap-2 text-xs text-text-secondary">
+                  <Check size={14} className="text-success" aria-hidden="true" />
+                  Transcript ready — {canSummarize ? "summaries use it" : "search it below"}.
+                </p>
+              )}
+            </section>
           )}
         </div>
-      )}
+
+        {/* RIGHT — what you capture and learn. */}
+        <div id="notes" className="min-w-0 scroll-mt-6 space-y-5">
+          <div className="flex flex-wrap gap-2">
+            {/* Timestamp notes anchor to the player's position, which doesn't
+                exist for an episode that plays outside the app — every note
+                would silently claim 0:00. */}
+            {!episode.sourceUrl && (
+              <button type="button" onClick={() => openDraft("note")} aria-pressed={addingNote} className={PILL_BUTTON}>
+                <Clock3 size={14} aria-hidden="true" />
+                Add Timestamp Note
+              </button>
+            )}
+            <button type="button" onClick={() => openDraft("highlight")} aria-pressed={addingHighlight} className={PILL_BUTTON}>
+              <Quote size={14} aria-hidden="true" />
+              Save Key Highlight
+            </button>
+          </div>
+
+          {(addingNote || addingHighlight) && (
+            <div className={`${CARD} border-accent/40 p-4`}>
+              <p className="text-xs font-semibold text-text-secondary">
+                {addingNote ? "New timestamp note" : "New highlight"} at{" "}
+                <span className="font-bold tabular-nums text-accent">{formatTime(currentPosition)}</span>
+              </p>
+              <textarea
+                autoFocus
+                value={draftText}
+                onChange={(e) => setDraftText(e.target.value)}
+                placeholder={addingNote ? "What's worth remembering here?" : "Paste or type the key quote..."}
+                rows={3}
+                className="mt-2 w-full resize-none rounded-control border border-border bg-bg-surface-alt px-3 py-2.5 text-[14px] text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none"
+              />
+              <div className="mt-2">
+                <TagInput tags={draftTags} onChange={setDraftTags} suggestions={allKnownTags} />
+              </div>
+              <div className="mt-3 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAddingNote(false);
+                    setAddingHighlight(false);
+                  }}
+                  className={`${BUTTON_GHOST} px-3 py-1.5 text-xs`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={addingNote ? handleAddNote : handleAddHighlight}
+                  className={`${BUTTON_PRIMARY} px-4 py-1.5 text-xs`}
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          )}
+
+          {canSummarize && aiSummaryError && (
+            <RetryNotice
+              icon={Sparkles}
+              message={`${aiSummaryError}${aiSummary ? " The summary below is from before this attempt." : ""}`}
+              busy={generating}
+              onRetry={handleSummarize}
+            />
+          )}
+
+          {canSummarize && aiSummary && (
+            <AISummaryCard
+              bullets={aiSummary}
+              onRegenerate={handleSummarize}
+              onClear={() => clearSummary(episode.id)}
+              onInsert={(bullet) => {
+                setFreeformNotes((prev) => `${prev}\n- ${bullet}`);
+                // Without this, an inserted bullet lands past the bottom of the
+                // (short, fixed-height) notes textarea with no visible change,
+                // making the button look like it did nothing.
+                requestAnimationFrame(() => {
+                  notesEditorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                  const textarea = notesEditorRef.current?.querySelector("textarea");
+                  if (textarea) textarea.scrollTop = textarea.scrollHeight;
+                });
+              }}
+            />
+          )}
+
+          <div ref={notesEditorRef}>
+            <MarkdownNoteEditor
+              value={freeformNotes}
+              onChange={setFreeformNotes}
+              placeholder="Write freeform Markdown notes here — bullets, headers, etc."
+            />
+          </div>
+
+          {sortedNotes.length > 0 && (
+            <section aria-label="Timestamped notes and highlights">
+              <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-text-primary">
+                Timeline
+                <span className="rounded-full bg-bg-surface-alt px-2 py-0.5 text-[11px] font-bold text-text-secondary">
+                  {sortedNotes.length}
+                </span>
+              </h2>
+              <div className="space-y-3">
+                {sortedNotes.map((note) =>
+                  note.type === "highlight" ? (
+                    <HighlightBlock key={note.id} note={note} />
+                  ) : (
+                    <TimestampNoteBlock key={note.id} note={note} />
+                  ),
+                )}
+              </div>
+            </section>
+          )}
+
+          {canTranscribe && transcribeError && (
+            <RetryNotice icon={Mic} message={transcribeError} busy={transcribing} onRetry={handleTranscribe} />
+          )}
+
+          {episode.sourceUrl && transcribeError && !canTranscribe && (
+            <RetryNotice
+              icon={FileText}
+              message={transcribeError}
+              busy={youtubeTranscriptLoading}
+              onRetry={handleFetchYoutubeTranscript}
+            />
+          )}
+
+          {(canTranscribe || episode.sourceUrl) && transcript && (
+            <TranscriptView segments={transcript} onClear={() => clearTranscript(episode.id)} />
+          )}
+        </div>
+      </div>
     </div>
   );
 }

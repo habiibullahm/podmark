@@ -15,7 +15,10 @@ test.describe("An honest first run", () => {
   test("Escape closes the full-screen player", async ({ page }) => {
     await page.goto("/#/episode/ep-1");
     await page.getByRole("button", { name: "Play", exact: true }).click();
-    await page.getByText("Building a Second Brain: The Case for Structured Notes").last().click();
+    // The episode workspace has its own player; the expandable player lives
+    // in the utility panel (desktop) or the docked mini player (mobile).
+    await page.goto("/#/library");
+    await page.getByRole("button", { name: "Open full screen" }).click();
 
     await expect(page.getByText("Now Playing")).toBeVisible();
     await page.keyboard.press("Escape");
@@ -53,7 +56,7 @@ test.describe("An honest first run", () => {
 
     await expect(page.getByText("Find your first episode to start tracking what you learn.")).toBeVisible();
     await page.getByRole("button", { name: "Find your first episode" }).click();
-    await expect(page).toHaveURL(/#\/library/);
+    await expect(page).toHaveURL(/#\/discover/);
     await expect(page.getByPlaceholder(/Search podcasts, or paste a YouTube link/)).toBeVisible();
   });
 

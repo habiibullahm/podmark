@@ -25,15 +25,14 @@ async function mockMetadata(page: import("@playwright/test").Page) {
 // Looking up a link only previews it; adding is a second, deliberate step on
 // the card — the same shape as a podcast search result.
 async function lookupMockVideo(page: import("@playwright/test").Page) {
-  await page.goto("/#/library");
-  await page.getByRole("button", { name: "Discover" }).click();
+  await page.goto("/#/discover");
   await page.getByPlaceholder("Search podcasts, or paste a YouTube link...").fill(YOUTUBE_URL);
   await page.getByRole("button", { name: "Look up", exact: true }).click();
 }
 
 async function addMockVideo(page: import("@playwright/test").Page) {
   await lookupMockVideo(page);
-  await page.getByRole("button", { name: "+ Add to Library" }).click();
+  await page.getByRole("button", { name: "Add to Library" }).click();
 }
 
 test.describe("YouTube episodes", () => {
@@ -46,12 +45,12 @@ test.describe("YouTube episodes", () => {
     // Preview is on screen with the same add affordance a search result has,
     // and the library is untouched until that button is pressed.
     await expect(page.getByText("E2E Mock YouTube Talk")).toBeVisible();
-    await expect(page.getByRole("button", { name: "+ Add to Library" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Add to Library" })).toBeVisible();
     const before = await page.evaluate(() => localStorage.getItem("podmark-episodes"));
     expect(before ?? "").not.toContain("youtube-dQw4w9WgXcQ");
 
-    await page.getByRole("button", { name: "+ Add to Library" }).click();
-    await expect(page.getByRole("button", { name: "✓ In Library" })).toBeVisible();
+    await page.getByRole("button", { name: "Add to Library" }).click();
+    await expect(page.getByRole("button", { name: "In Library" })).toBeVisible();
     const after = await page.evaluate(() => localStorage.getItem("podmark-episodes"));
     expect(after).toContain("youtube-dQw4w9WgXcQ");
   });
@@ -72,13 +71,13 @@ test.describe("YouTube episodes", () => {
     await mockMetadata(page);
     await addMockVideo(page);
 
-    await page.getByRole("button", { name: "Episodes" }).click();
+    await page.getByRole("link", { name: "Library", exact: true }).click();
     const card = page.locator("button", { hasText: "E2E Mock YouTube Talk" }).first();
 
     // A YouTube video has an unknown (0) duration, which must not be read as
     // "watched to the end" — and with no duration there's no countdown to show.
     await expect(card).toBeVisible();
-    await expect(card.getByText("✓ Completed")).toHaveCount(0);
+    await expect(card.getByText("Completed", { exact: true })).toHaveCount(0);
     await expect(card.getByText(/left$/)).toHaveCount(0);
   });
 
@@ -91,8 +90,7 @@ test.describe("YouTube episodes", () => {
       }),
     );
 
-    await page.goto("/#/library");
-    await page.getByRole("button", { name: "Discover" }).click();
+    await page.goto("/#/discover");
     // A channel link routes to the add path (it is a YouTube URL) but has no
     // video id for the server to resolve.
     await page.getByPlaceholder("Search podcasts, or paste a YouTube link...").fill("https://www.youtube.com/@MITOCW");
@@ -110,8 +108,7 @@ test.describe("YouTube episodes", () => {
       }),
     );
 
-    await page.goto("/#/library");
-    await page.getByRole("button", { name: "Discover" }).click();
+    await page.goto("/#/discover");
     await page.getByPlaceholder("Search podcasts, or paste a YouTube link...").fill("structured notes");
 
     // The one field switches action based on what's in it.
@@ -130,8 +127,7 @@ test.describe("YouTube episodes", () => {
       }),
     );
 
-    await page.goto("/#/library");
-    await page.getByRole("button", { name: "Discover" }).click();
+    await page.goto("/#/discover");
     await page.getByPlaceholder("Search podcasts, or paste a YouTube link...").fill(YOUTUBE_URL);
     await page.getByRole("button", { name: "Look up", exact: true }).click();
 
@@ -169,8 +165,7 @@ test.describe("YouTube episodes", () => {
     await mockMetadata(page);
     await page.route("https://itunes.apple.com/search**", (route) => route.abort("failed"));
 
-    await page.goto("/#/library");
-    await page.getByRole("button", { name: "Discover" }).click();
+    await page.goto("/#/discover");
     const field = page.getByPlaceholder("Search podcasts, or paste a YouTube link...");
 
     await field.fill("something");
@@ -188,13 +183,13 @@ test.describe("YouTube episodes", () => {
     await expect(page.getByText("E2E Mock YouTube Talk")).toHaveCount(0);
   });
 
-  test("the added card doesn't linger after switching tabs", async ({ page }) => {
+  test("the added card doesn't linger after leaving Discover", async ({ page }) => {
     await mockMetadata(page);
     await addMockVideo(page);
     await expect(page.getByText("E2E Mock YouTube Talk")).toBeVisible();
 
-    await page.getByRole("button", { name: "Takeaways" }).click();
-    await page.getByRole("button", { name: "Discover" }).click();
+    await page.getByRole("link", { name: "Library", exact: true }).click();
+    await page.getByRole("link", { name: "Discover", exact: true }).click();
 
     await expect(page.getByText("E2E Mock YouTube Talk")).toHaveCount(0);
   });

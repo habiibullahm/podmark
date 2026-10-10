@@ -1,21 +1,11 @@
 import { useEffect } from "react";
+import { ChevronDown } from "lucide-react";
 import { usePlayer } from "../context/PlayerContext";
-import { clampPercent, formatTime } from "../lib/format";
 import { EpisodeArtwork } from "./EpisodeArtwork";
+import { PlayerTransport, SeekBar, SpeedButton } from "./PlayerControls";
 
 export function FullScreenPlayerModal() {
-  const {
-    episode,
-    positionSec,
-    isPlaying,
-    isExpanded,
-    speed,
-    togglePlay,
-    skip,
-    seek,
-    cycleSpeed,
-    setExpanded,
-  } = usePlayer();
+  const { episode, isExpanded, setExpanded } = usePlayer();
 
   useEffect(() => {
     if (!isExpanded) return;
@@ -28,94 +18,46 @@ export function FullScreenPlayerModal() {
 
   if (!episode || !isExpanded) return null;
 
-  const pct = clampPercent(positionSec, episode.durationSec);
-
   return (
     <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 md:p-6"
+      className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm md:p-6"
       onClick={() => setExpanded(false)}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Now Playing"
         onClick={(e) => e.stopPropagation()}
-        className="flex h-full w-full max-w-[430px] flex-col bg-bg-primary md:h-auto md:max-h-[90vh] md:overflow-y-auto md:rounded-3xl md:border md:border-border md:shadow-2xl"
+        className="flex h-full w-full max-w-[440px] flex-col bg-bg-surface md:h-auto md:max-h-[90vh] md:overflow-y-auto md:rounded-[28px] md:border md:border-border md:shadow-raised"
       >
-        <div className="flex items-center justify-between px-5 pt-[calc(env(safe-area-inset-top)+1rem)] md:pt-6">
+        <div className="flex items-center justify-between px-5 pt-[calc(env(safe-area-inset-top)+1rem)] md:pt-5">
           <button
             type="button"
             onClick={() => setExpanded(false)}
-            className="text-xl text-text-secondary"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-text-secondary hover:bg-bg-surface-alt"
             aria-label="Collapse player"
           >
-            ⌄
+            <ChevronDown size={22} aria-hidden="true" />
           </button>
-          <p className="text-xs font-medium uppercase tracking-wide text-text-tertiary">
-            Now Playing
-          </p>
-          <span className="w-5" />
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-text-tertiary">Now Playing</p>
+          <span className="w-9" />
         </div>
 
-        <div className="flex flex-1 flex-col items-center justify-center px-8">
-          <EpisodeArtwork episode={episode} className="mb-8 h-64 w-64 rounded-3xl shadow-2xl" />
-          <p className="text-center text-[13px] font-medium text-text-secondary">
-            {episode.show}
-          </p>
-          <h2 className="mt-1 line-clamp-2 text-center text-xl font-semibold text-text-primary">
+        <div className="flex flex-1 flex-col items-center justify-center px-8 py-6">
+          <EpisodeArtwork episode={episode} className="mb-8 aspect-square w-full max-w-[280px] rounded-[28px] shadow-raised" />
+          <p className="text-center text-[13px] font-semibold text-text-secondary">{episode.show}</p>
+          <h2 className="mt-1 line-clamp-2 text-center text-xl font-bold tracking-tight text-text-primary">
             {episode.title}
           </h2>
         </div>
 
-        <div className="px-6 pb-10">
-          <input
-            type="range"
-            min={0}
-            max={episode.durationSec}
-            value={positionSec}
-            onChange={(e) => seek(Number(e.target.value))}
-            className="w-full accent-accent"
-            style={{
-              background: `linear-gradient(to right, var(--color-accent) ${pct}%, var(--color-bg-surface-alt) ${pct}%)`,
-            }}
-          />
-          <div className="mt-1 flex justify-between text-xs text-text-secondary">
-            <span>{formatTime(positionSec)}</span>
-            <span>-{formatTime(episode.durationSec - positionSec)}</span>
+        <div className="px-6 pb-[calc(env(safe-area-inset-bottom)+2.5rem)] md:pb-8">
+          <SeekBar />
+          <div className="mt-6 flex justify-center">
+            <PlayerTransport size="lg" />
           </div>
-
-          <div className="mt-8 flex items-center justify-center gap-8">
-            <button
-              type="button"
-              onClick={() => skip(-15)}
-              className="text-2xl text-text-primary"
-              aria-label="Back 15 seconds"
-            >
-              ⏪
-            </button>
-            <button
-              type="button"
-              onClick={togglePlay}
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-accent text-2xl text-white"
-              aria-label={isPlaying ? "Pause" : "Play"}
-            >
-              {isPlaying ? "⏸" : "▶"}
-            </button>
-            <button
-              type="button"
-              onClick={() => skip(15)}
-              className="text-2xl text-text-primary"
-              aria-label="Forward 15 seconds"
-            >
-              ⏩
-            </button>
-          </div>
-
-          <div className="mt-8 flex justify-center">
-            <button
-              type="button"
-              onClick={cycleSpeed}
-              className="rounded-full bg-bg-surface-alt px-4 py-1.5 text-sm font-semibold text-text-secondary"
-            >
-              {speed}x speed
-            </button>
+          <div className="mt-6 flex justify-center">
+            <SpeedButton />
           </div>
         </div>
       </div>

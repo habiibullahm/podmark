@@ -32,18 +32,19 @@ export function SegmentedTabSwitcher<T extends string>({
   }, [active]);
 
   return (
-    <div className="mx-5 inline-flex max-w-full flex-nowrap gap-1 overflow-x-auto rounded-xl border border-border bg-bg-surface p-1 no-scrollbar md:mx-0">
+    <div className="inline-flex max-w-full flex-nowrap gap-1 overflow-x-auto rounded-control border border-border bg-bg-surface p-1 shadow-card no-scrollbar">
       {tabs.map((tab) => (
         <button
           key={tab.key}
           ref={active === tab.key ? activeRef : undefined}
           type="button"
+          aria-pressed={active === tab.key}
           onClick={() => onChange(tab.key)}
           className={[
-            "shrink-0 whitespace-nowrap rounded-lg px-3.5 py-1.5 text-[13px] font-medium transition-colors",
+            "shrink-0 whitespace-nowrap rounded-lg px-4 py-2 text-[13px] font-semibold transition-colors",
             active === tab.key
               ? "bg-accent text-white"
-              : "text-text-secondary hover:text-text-primary",
+              : "text-text-secondary hover:bg-bg-surface-alt hover:text-text-primary",
           ].join(" ")}
         >
           {tab.label}

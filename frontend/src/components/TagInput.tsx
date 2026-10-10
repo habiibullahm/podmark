@@ -67,7 +67,7 @@ export function TagInput({ tags, onChange, suggestions, placeholder = "Add a tag
         />
       </div>
       {open && matches.length > 0 && (
-        <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-40 overflow-y-auto rounded-lg border border-border bg-bg-surface p-1 shadow-lg">
+        <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-40 overflow-y-auto rounded-xl border border-border bg-bg-surface p-1 shadow-raised">
           {matches.slice(0, 8).map((tag) => (
             <button
               key={tag}

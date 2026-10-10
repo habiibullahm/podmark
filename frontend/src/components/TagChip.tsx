@@ -8,12 +8,12 @@ interface TagChipProps {
 export function TagChip({ label, active, onClick, size = "sm" }: TagChipProps) {
   const isInteractive = !!onClick;
   const className = [
-    "inline-flex items-center whitespace-nowrap rounded-full border transition-colors",
-    size === "sm" ? "px-3 py-1 text-xs font-medium" : "px-3.5 py-1.5 text-sm font-medium",
+    "inline-flex items-center whitespace-nowrap rounded-full border font-medium transition-colors",
+    size === "sm" ? "px-2.5 py-0.5 text-xs" : "px-3.5 py-1.5 text-sm",
     active
-      ? "bg-accent/15 border-accent text-accent"
-      : "bg-bg-surface-alt border-border text-text-secondary",
-    isInteractive ? "cursor-pointer hover:border-accent/60" : "cursor-default",
+      ? "border-accent bg-accent/10 text-accent"
+      : "border-border bg-bg-surface-alt text-text-secondary",
+    isInteractive ? "cursor-pointer hover:border-accent/50 hover:text-accent" : "cursor-default",
   ].join(" ");
 
   // Purely decorative usage (no onClick) renders as a <span> — a <button> here would be
@@ -23,7 +23,7 @@ export function TagChip({ label, active, onClick, size = "sm" }: TagChipProps) {
   }
 
   return (
-    <button type="button" onClick={onClick} className={className}>
+    <button type="button" onClick={onClick} aria-pressed={!!active} className={className}>
       #{label}
     </button>
   );

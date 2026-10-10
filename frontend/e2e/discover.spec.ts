@@ -26,16 +26,15 @@ test.describe("Discover (real podcast search)", () => {
       }),
     );
 
-    await page.goto("/#/library");
-    await page.getByRole("button", { name: "Discover" }).click();
+    await page.goto("/#/discover");
     await page.getByPlaceholder("Search podcasts, or paste a YouTube link...").fill("test query");
     await page.getByRole("button", { name: "Search", exact: true }).click();
 
     await expect(page.getByText("E2E Mock Episode")).toBeVisible();
     await expect(page.getByText("E2E Mock Show")).toBeVisible();
 
-    await page.getByRole("button", { name: "+ Add to Library" }).click();
-    await expect(page.getByRole("button", { name: "✓ In Library" })).toBeVisible();
+    await page.getByRole("button", { name: "Add to Library" }).click();
+    await expect(page.getByRole("button", { name: "In Library" })).toBeVisible();
 
     const stored = await page.evaluate(() => localStorage.getItem("podmark-episodes"));
     expect(stored).toContain("itunes-999888777");
@@ -51,19 +50,18 @@ test.describe("Discover (real podcast search)", () => {
       }),
     );
 
-    await page.goto("/#/library");
-    await page.getByRole("button", { name: "Discover" }).click();
+    await page.goto("/#/discover");
     await page.getByPlaceholder("Search podcasts, or paste a YouTube link...").fill("test query");
     await page.getByRole("button", { name: "Search", exact: true }).click();
-    await page.getByRole("button", { name: "+ Add to Library" }).click();
+    await page.getByRole("button", { name: "Add to Library" }).click();
 
-    // The tag filter row is hidden on Discover (it filters your own library,
+    // The tag filter row isn't on Discover (it filters your own library,
     // not search results), so check it where it actually lives. A newly-added
     // episode's tag ("technology") appearing there proves the shared episodes
     // store updated.
     // exact: true so this matches the filter chip alone — the episode card is
     // itself a button whose accessible name also contains "#technology".
-    await page.getByRole("button", { name: "Episodes" }).click();
+    await page.getByRole("link", { name: "Library", exact: true }).click();
     await expect(page.getByRole("button", { name: "#technology", exact: true })).toBeVisible();
   });
 
@@ -76,12 +74,11 @@ test.describe("Discover (real podcast search)", () => {
       }),
     );
 
-    await page.goto("/#/library");
-    await page.getByRole("button", { name: "Discover" }).click();
+    await page.goto("/#/discover");
     await page.getByPlaceholder("Search podcasts, or paste a YouTube link...").fill("test query");
     await page.getByRole("button", { name: "Search", exact: true }).click();
-    await page.getByRole("button", { name: "+ Add to Library" }).click();
-    await expect(page.getByRole("button", { name: "✓ In Library" })).toBeVisible();
+    await page.getByRole("button", { name: "Add to Library" }).click();
+    await expect(page.getByRole("button", { name: "In Library" })).toBeVisible();
 
     // Newly-added episodes start "not-started", so they don't show up in any
     // Library tab — clicking the now-added Discover card is the only way back
@@ -101,23 +98,21 @@ test.describe("Discover (real podcast search)", () => {
       }),
     );
 
-    await page.goto("/#/library");
-    await page.getByRole("button", { name: "Discover" }).click();
+    await page.goto("/#/discover");
     await page.getByPlaceholder("Search podcasts, or paste a YouTube link...").fill("test query");
     await page.getByRole("button", { name: "Search", exact: true }).click();
-    await page.getByRole("button", { name: "+ Add to Library" }).click();
+    await page.getByRole("button", { name: "Add to Library" }).click();
 
     // The post-add button is the obvious focal point, so it must be a way in
     // rather than a dead disabled pill.
-    await page.getByRole("button", { name: "✓ In Library" }).click();
+    await page.getByRole("button", { name: "In Library" }).click();
     await expect(page).toHaveURL(/#\/episode\/itunes-999888777/);
   });
 
   test("shows an error state when the search request fails", async ({ page }) => {
     await page.route("https://itunes.apple.com/search**", (route) => route.abort("failed"));
 
-    await page.goto("/#/library");
-    await page.getByRole("button", { name: "Discover" }).click();
+    await page.goto("/#/discover");
     await page.getByPlaceholder("Search podcasts, or paste a YouTube link...").fill("test query");
     await page.getByRole("button", { name: "Search", exact: true }).click();
 
@@ -133,8 +128,7 @@ test.describe("Discover (real podcast search)", () => {
       }),
     );
 
-    await page.goto("/#/library");
-    await page.getByRole("button", { name: "Discover" }).click();
+    await page.goto("/#/discover");
     await page.getByPlaceholder("Search podcasts, or paste a YouTube link...").fill("zzzznoresults");
     await page.getByRole("button", { name: "Search", exact: true }).click();
 

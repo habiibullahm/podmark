@@ -7,6 +7,8 @@ import { TagChip } from "./TagChip";
 import { TagInput } from "./TagInput";
 import { useClickOutside } from "../lib/useClickOutside";
 import { formatTime } from "../lib/format";
+import { Ellipsis, Pencil, Trash2 } from "lucide-react";
+import { BUTTON_DANGER, BUTTON_GHOST, BUTTON_PRIMARY, MENU, MENU_ITEM } from "../lib/ui";
 
 export function HighlightBlock({ note }: { note: NoteBlock }) {
   const updateNote = useNotesStore((s) => s.updateNote);
@@ -22,13 +24,13 @@ export function HighlightBlock({ note }: { note: NoteBlock }) {
 
   if (editing) {
     return (
-      <div className="rounded-xl border border-accent/40 bg-bg-surface p-3">
+      <div className="rounded-card border border-accent/40 bg-bg-surface p-4 shadow-card">
         <textarea
           autoFocus
           value={draftText}
           onChange={(e) => setDraftText(e.target.value)}
           rows={2}
-          className="w-full resize-none rounded-lg border border-border bg-bg-surface-alt px-3 py-2 text-[14px] italic text-text-primary focus:border-accent focus:outline-none"
+          className="w-full resize-none rounded-control border border-border bg-bg-surface-alt px-3 py-2.5 text-[14px] italic text-text-primary focus:border-accent focus:outline-none"
         />
         <div className="mt-2">
           <TagInput tags={draftTags} onChange={setDraftTags} suggestions={allKnownTags} />
@@ -37,7 +39,7 @@ export function HighlightBlock({ note }: { note: NoteBlock }) {
           <button
             type="button"
             onClick={() => setEditing(false)}
-            className="rounded-lg px-3 py-1.5 text-xs font-medium text-text-secondary"
+            className={`${BUTTON_GHOST} px-3 py-1.5 text-xs`}
           >
             Cancel
           </button>
@@ -48,7 +50,7 @@ export function HighlightBlock({ note }: { note: NoteBlock }) {
               updateNote(note.id, { text: draftText.trim(), tags: draftTags });
               setEditing(false);
             }}
-            className="rounded-lg bg-accent px-3.5 py-1.5 text-xs font-semibold text-white"
+            className={`${BUTTON_PRIMARY} px-4 py-1.5 text-xs`}
           >
             Save changes
           </button>
@@ -58,7 +60,7 @@ export function HighlightBlock({ note }: { note: NoteBlock }) {
   }
 
   return (
-    <div className="rounded-xl border-l-4 border-accent bg-bg-surface py-3 pl-3.5 pr-3">
+    <div className="rounded-card border border-border border-l-4 border-l-streak bg-bg-surface py-3.5 pl-4 pr-3.5 shadow-card">
       {confirmingDelete ? (
         <div className="flex items-center justify-between gap-2">
           <p className="text-[13px] text-text-primary">Delete this highlight?</p>
@@ -66,14 +68,14 @@ export function HighlightBlock({ note }: { note: NoteBlock }) {
             <button
               type="button"
               onClick={() => setConfirmingDelete(false)}
-              className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-text-secondary"
+              className={`${BUTTON_GHOST} px-2.5 py-1.5 text-xs`}
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={() => removeNote(note.id)}
-              className="rounded-lg bg-red-500 px-3 py-1.5 text-xs font-semibold text-white"
+              className={BUTTON_DANGER}
             >
               Delete
             </button>
@@ -88,12 +90,12 @@ export function HighlightBlock({ note }: { note: NoteBlock }) {
                 type="button"
                 onClick={() => setMenuOpen((v) => !v)}
                 aria-label={`Highlight options — ${formatTime(note.timestampSec)}`}
-                className="text-text-tertiary hover:text-text-secondary"
+                className="-mr-1 -mt-1 flex h-8 w-8 items-center justify-center rounded-full text-text-tertiary hover:bg-bg-surface-alt hover:text-text-primary"
               >
-                ⋯
+                <Ellipsis size={17} aria-hidden="true" />
               </button>
               {menuOpen && (
-                <div className="absolute right-0 top-full z-20 mt-1 w-32 rounded-xl border border-border bg-bg-surface p-1.5 shadow-lg">
+                <div className={`${MENU} mt-1 w-36`}>
                   <button
                     type="button"
                     onClick={() => {
@@ -102,8 +104,9 @@ export function HighlightBlock({ note }: { note: NoteBlock }) {
                       setEditing(true);
                       setMenuOpen(false);
                     }}
-                    className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-sm text-text-primary hover:bg-bg-surface-alt"
+                    className={MENU_ITEM}
                   >
+                    <Pencil size={15} aria-hidden="true" />
                     Edit
                   </button>
                   <button
@@ -112,8 +115,9 @@ export function HighlightBlock({ note }: { note: NoteBlock }) {
                       setConfirmingDelete(true);
                       setMenuOpen(false);
                     }}
-                    className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-sm text-red-400 hover:bg-bg-surface-alt"
+                    className={`${MENU_ITEM} text-danger`}
                   >
+                    <Trash2 size={15} aria-hidden="true" />
                     Delete
                   </button>
                 </div>

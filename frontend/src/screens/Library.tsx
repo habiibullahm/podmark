@@ -1,33 +1,30 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { ArrowLeft, Download, Ellipsis, FolderOpen, FolderPlus, Headphones, Pencil, Quote, SearchX, Trash2 } from "lucide-react";
 import { useNotesStore } from "../store/useNotesStore";
 import { useEpisodesStore } from "../store/useEpisodesStore";
 import { useSettingsStore } from "../store/useSettingsStore";
 import { useFoldersStore } from "../store/useFoldersStore";
 import { usePlayer } from "../context/PlayerContext";
 import { getEffectiveStatus } from "../lib/episodes";
-import { searchPodcastEpisodes } from "../lib/itunesApi";
-import { fetchYouTubeEpisode, isYouTubeUrl } from "../lib/youtubeApi";
 import { buildLibraryMarkdown, downloadMarkdownFile, hasMeaningfulFreeformNotes } from "../lib/export";
-import { formatTime } from "../lib/format";
 import { useAllKnownTags } from "../lib/useAllTags";
-import type { Episode } from "../data/types";
-import { SearchBar } from "../components/SearchBar";
+import { BUTTON_DANGER, BUTTON_GHOST, BUTTON_PRIMARY, BUTTON_SECONDARY, CARD, MENU, MENU_ITEM } from "../lib/ui";
+import { PageHeader } from "../components/PageHeader";
+import { SearchInput } from "../components/SearchInput";
 import { SegmentedTabSwitcher } from "../components/SegmentedTabSwitcher";
 import { TagChip } from "../components/TagChip";
 import { EpisodeCard } from "../components/EpisodeCard";
 import { TakeawayCard } from "../components/TakeawayCard";
 import { FolderCard } from "../components/FolderCard";
 import { EmptyState } from "../components/EmptyState";
-import { EpisodeArtwork } from "../components/EpisodeArtwork";
 
-type TabKey = "episodes" | "takeaways" | "folders" | "discover";
+type TabKey = "episodes" | "takeaways" | "folders";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "episodes", label: "Episodes" },
   { key: "takeaways", label: "Takeaways" },
   { key: "folders", label: "Folders" },
-  { key: "discover", label: "Discover" },
 ];
 
 // In-progress episodes surface first (most actionable), then not-started,
@@ -35,50 +32,47 @@ const TABS: { key: TabKey; label: string }[] = [
 // bury what the user is actually likely to want next under old completions.
 const STATUS_RANK: Record<string, number> = { "in-progress": 0, "not-started": 1, finished: 2 };
 
-function DiscoverResultCard({ episode, onAdd, added }: { episode: Episode; onAdd: () => void; added: boolean }) {
-  const navigate = useNavigate();
-
+function NameForm({
+  initial = "",
+  submitLabel,
+  onSubmit,
+  onCancel,
+}: {
+  initial?: string;
+  submitLabel: string;
+  onSubmit: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(initial);
   return (
-    <div
-      onClick={added ? () => navigate(`/episode/${episode.id}`) : undefined}
-      className={`flex items-start gap-3 rounded-2xl border border-border bg-bg-surface p-3 pb-4 ${
-        added ? "cursor-pointer hover:border-accent/60" : ""
-      }`}
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (value.trim()) onSubmit(value.trim());
+      }}
+      className={`${CARD} flex items-center gap-2 border-accent/40 p-2.5`}
     >
-      <EpisodeArtwork episode={episode} className="h-12 w-12 shrink-0 rounded-xl" />
-      <div className="min-w-0 flex-1">
-        <p className="line-clamp-2 text-[15px] font-medium leading-snug text-text-primary">
-          {episode.title}
-        </p>
-        <p className="line-clamp-1 text-xs text-text-secondary">{episode.show}</p>
-        {episode.durationSec > 0 && (
-          <p className="text-xs text-text-tertiary">{formatTime(episode.durationSec)}</p>
-        )}
-      </div>
-      {/* Once added, the button names where it went and opens it — a disabled
-          "Added" pill hid that the card was now the way in. */}
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          if (added) navigate(`/episode/${episode.id}`);
-          else onAdd();
-        }}
-        title={added ? "Open in your Library" : undefined}
-        className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-          added
-            ? "bg-success/15 text-success hover:bg-success/25"
-            : "bg-accent text-white hover:bg-accent/90"
-        }`}
-      >
-        {added ? "✓ In Library" : "+ Add to Library"}
+      <input
+        autoFocus
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Folder name..."
+        aria-label="Folder name"
+        className="min-w-0 flex-1 bg-transparent px-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none"
+      />
+      <button type="button" onClick={onCancel} className={`${BUTTON_GHOST} px-2.5 py-1.5 text-xs`}>
+        Cancel
       </button>
-    </div>
+      <button type="submit" disabled={!value.trim()} className={`${BUTTON_PRIMARY} px-3 py-1.5 text-xs`}>
+        {submitLabel}
+      </button>
+    </form>
   );
 }
 
 export function Library() {
   const location = useLocation();
+  const navigate = useNavigate();
   const requestedTab = (location.state as { tab?: TabKey } | null)?.tab;
   const [tab, setTab] = useState<TabKey>(
     requestedTab && TABS.some((t) => t.key === requestedTab) ? requestedTab : "episodes",
@@ -89,7 +83,6 @@ export function Library() {
   const freeformNotes = useNotesStore((s) => s.freeformNotes);
   const aiSummaries = useNotesStore((s) => s.aiSummaries);
   const episodes = useEpisodesStore((s) => s.episodes);
-  const addEpisode = useEpisodesStore((s) => s.addEpisode);
   const exportFormat = useSettingsStore((s) => s.exportFormat);
   const folders = useFoldersStore((s) => s.folders);
   const addFolder = useFoldersStore((s) => s.addFolder);
@@ -99,43 +92,18 @@ export function Library() {
 
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [newFolderOpen, setNewFolderOpen] = useState(false);
-  const [newFolderName, setNewFolderName] = useState("");
   const [folderActionsOpen, setFolderActionsOpen] = useState(false);
   const [renamingFolder, setRenamingFolder] = useState(false);
-  const [renameValue, setRenameValue] = useState("");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const folderActionsRef = useRef<HTMLDivElement>(null);
   const selectedFolder = folders.find((f) => f.id === selectedFolderId) ?? null;
-  const folderEpisodes = selectedFolder
-    ? episodes.filter((e) => selectedFolder.episodeIds.includes(e.id))
-    : [];
-
-  const handleCreateFolder = () => {
-    const name = newFolderName.trim();
-    if (!name) return;
-    addFolder(name);
-    setNewFolderName("");
-    setNewFolderOpen(false);
-  };
+  const folderEpisodes = selectedFolder ? episodes.filter((e) => selectedFolder.episodeIds.includes(e.id)) : [];
 
   const closeFolderView = () => {
     setSelectedFolderId(null);
     setFolderActionsOpen(false);
     setRenamingFolder(false);
     setConfirmingDelete(false);
-  };
-
-  const handleRenameFolder = () => {
-    const name = renameValue.trim();
-    if (!name || !selectedFolder) return;
-    renameFolder(selectedFolder.id, name);
-    setRenamingFolder(false);
-  };
-
-  const handleDeleteFolder = () => {
-    if (!selectedFolder) return;
-    deleteFolder(selectedFolder.id);
-    closeFolderView();
   };
 
   useEffect(() => {
@@ -157,60 +125,6 @@ export function Library() {
   const handleExportAll = () => {
     const markdown = buildLibraryMarkdown(episodes, storeNotes, exportFormat, freeformNotes, aiSummaries);
     downloadMarkdownFile(`podmark-export-${new Date().toISOString().slice(0, 10)}.md`, markdown);
-  };
-
-  const [discoverQuery, setDiscoverQuery] = useState("");
-  const [discoverResults, setDiscoverResults] = useState<Episode[]>([]);
-  const [discoverLoading, setDiscoverLoading] = useState(false);
-  const [discoverError, setDiscoverError] = useState<string | null>(null);
-  const [discoverSearched, setDiscoverSearched] = useState(false);
-
-  const pastedYoutubeLink = isYouTubeUrl(discoverQuery);
-  const [youtubeLoading, setYoutubeLoading] = useState(false);
-  const [youtubeError, setYoutubeError] = useState<string | null>(null);
-  const [youtubeResult, setYoutubeResult] = useState<Episode | null>(null);
-
-  // Looking up a link only previews it — nothing is added until the user
-  // presses "+ Add to Library" on the card, exactly as with a search result.
-  // Adding straight from the field made the two paths behave differently
-  // despite sharing one input, and left people unsure whether they'd just
-  // committed something.
-  const lookupYoutubeVideo = async () => {
-    const url = discoverQuery.trim();
-    if (!url) return;
-    setYoutubeLoading(true);
-    setYoutubeError(null);
-    setYoutubeResult(null);
-    // The two actions share one field, so each clears the other's feedback —
-    // otherwise a failed search stays on screen under a successful lookup.
-    setDiscoverError(null);
-    try {
-      setYoutubeResult(await fetchYouTubeEpisode(url));
-      setDiscoverQuery("");
-    } catch (err) {
-      setYoutubeError(err instanceof Error ? err.message : "Couldn't look up that YouTube video.");
-    } finally {
-      setYoutubeLoading(false);
-    }
-  };
-
-  const runDiscoverSearch = async () => {
-    const term = discoverQuery.trim();
-    if (!term) return;
-    setDiscoverLoading(true);
-    setDiscoverError(null);
-    setYoutubeError(null);
-    setYoutubeResult(null);
-    try {
-      const results = await searchPodcastEpisodes(term);
-      setDiscoverResults(results);
-      setDiscoverSearched(true);
-    } catch (err) {
-      console.error("Podcast search failed:", err);
-      setDiscoverError("Couldn't reach the podcast search service — check your connection and try again.");
-    } finally {
-      setDiscoverLoading(false);
-    }
   };
 
   const allTags = useAllKnownTags();
@@ -242,104 +156,112 @@ export function Library() {
   );
 
   return (
-    <div className="pb-40 md:pb-16">
-      <div className="flex items-center justify-between px-5 pb-4 pt-[calc(env(safe-area-inset-top)+1rem)] md:px-0 md:pt-0">
-        <h1 className="text-[28px] font-bold text-text-primary">Library</h1>
-        <button
-          type="button"
-          onClick={handleExportAll}
-          disabled={!hasExportableContent}
-          title={!hasExportableContent ? "No notes yet to export" : `Export all notes as Markdown (${exportFormat} format)`}
-          className="text-sm font-medium text-accent disabled:cursor-not-allowed disabled:text-text-tertiary"
-        >
-          Export All ↗
-        </button>
-      </div>
+    <div>
+      <PageHeader
+        title="Library"
+        subtitle={`${episodes.length} episode${episodes.length === 1 ? "" : "s"} · ${storeNotes.length} takeaway${storeNotes.length === 1 ? "" : "s"}`}
+        actions={
+          <button
+            type="button"
+            onClick={handleExportAll}
+            disabled={!hasExportableContent}
+            title={!hasExportableContent ? "No notes yet to export" : `Export all notes as Markdown (${exportFormat} format)`}
+            className={BUTTON_SECONDARY}
+          >
+            <Download size={16} aria-hidden="true" />
+            Export all
+          </button>
+        }
+      />
 
       {/* Tabs lead, because the search and tag filters below them are scoped to
           whichever tab is selected. */}
-      <div>
-        <SegmentedTabSwitcher
-          tabs={TABS}
-          active={tab}
-          onChange={(t) => {
-            setTab(t);
-            closeFolderView();
-            setNewFolderOpen(false);
-            // Transient feedback for the last lookup — it shouldn't be waiting
-            // here when the user comes back to this tab later.
-            setYoutubeResult(null);
-            setYoutubeError(null);
-          }}
-        />
-      </div>
+      <SegmentedTabSwitcher
+        tabs={TABS}
+        active={tab}
+        onChange={(t) => {
+          setTab(t);
+          closeFolderView();
+          setNewFolderOpen(false);
+        }}
+      />
 
-      {/* These filters apply to episodes and takeaways. On Discover (which
-          searches elsewhere) and Folders (which filters nothing there) they'd
-          be dead controls. */}
+      {/* These filters apply to episodes and takeaways. On Folders (which
+          filters nothing there) they'd be dead controls. */}
       {(tab === "episodes" || tab === "takeaways") && (
-        <>
-          <div className="mt-3 px-5 md:px-0">
-            <SearchBar value={search} onChange={setSearch} />
-          </div>
-
-          <div className="mt-3 flex max-w-full flex-nowrap gap-2 overflow-x-auto px-5 pb-1 no-scrollbar md:flex-wrap md:overflow-visible md:px-0">
-            {allTags.map((tag) => (
-              <TagChip
-                key={tag}
-                label={tag}
-                active={activeTags.includes(tag)}
-                onClick={() => toggleTag(tag)}
-              />
-            ))}
-          </div>
-        </>
+        <div className="mt-4 space-y-3">
+          <SearchInput value={search} onChange={setSearch} />
+          {allTags.length > 0 && (
+            <div
+              className="-mx-4 flex max-w-[100vw] flex-nowrap gap-2 overflow-x-auto px-4 pb-1 no-scrollbar sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
+              aria-label="Filter by tag"
+            >
+              {allTags.map((tag) => (
+                <TagChip key={tag} label={tag} size="md" active={activeTags.includes(tag)} onClick={() => toggleTag(tag)} />
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
-      <div className="mt-4 space-y-2.5 px-5 md:px-0">
+      <div className="mt-5">
         {tab === "episodes" &&
           (visibleEpisodes.length > 0 ? (
-            visibleEpisodes.map((ep) => <EpisodeCard key={ep.id} episode={ep} />)
+            <div className="grid gap-3 xl:grid-cols-2">
+              {visibleEpisodes.map((ep) => (
+                <EpisodeCard key={ep.id} episode={ep} />
+              ))}
+            </div>
           ) : episodes.length === 0 ? (
             <EmptyState
-              icon="🎧"
+              icon={Headphones}
               text="Your library is empty — find a real episode to get started."
               actionLabel="Find your first episode"
-              onAction={() => setTab("discover")}
+              onAction={() => navigate("/discover")}
             />
           ) : (
-            <EmptyState icon="🎧" text="No episodes match your search — try a different term or clear the tag filters." />
+            <EmptyState icon={SearchX} text="No episodes match your search — try a different term or clear the tag filters." />
+          ))}
+
+        {tab === "takeaways" &&
+          (takeaways.length > 0 ? (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {takeaways.map((note) => (
+                <TakeawayCard key={note.id} note={note} />
+              ))}
+            </div>
+          ) : (
+            <EmptyState icon={Quote} text="No takeaways yet — save your first highlight." />
           ))}
 
         {tab === "folders" && selectedFolder && (
-          <>
+          <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <button
-                type="button"
-                onClick={closeFolderView}
-                className="flex items-center gap-1.5 text-sm font-medium text-text-secondary hover:text-text-primary"
-              >
-                ← All Folders
+              <button type="button" onClick={closeFolderView} className={`${BUTTON_GHOST} -ml-3`}>
+                <ArrowLeft size={16} aria-hidden="true" />
+                All Folders
               </button>
               <div className="relative" ref={folderActionsRef}>
                 <button
                   type="button"
                   onClick={() => setFolderActionsOpen((v) => !v)}
-                  className="rounded-lg px-2 text-lg text-text-secondary hover:text-text-primary"
+                  aria-label="Folder options"
+                  aria-expanded={folderActionsOpen}
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-text-secondary hover:bg-bg-surface-alt hover:text-text-primary"
                 >
-                  ⋯
+                  <Ellipsis size={18} aria-hidden="true" />
                 </button>
                 {folderActionsOpen && (
-                  <div className="absolute right-0 top-full z-20 mt-2 w-40 rounded-xl border border-border bg-bg-surface p-1.5 shadow-lg">
+                  <div className={`${MENU} w-40`}>
                     <button
                       type="button"
                       onClick={() => {
-                        setRenameValue(selectedFolder.name);
                         setRenamingFolder(true);
                         setFolderActionsOpen(false);
                       }}
-                      className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-sm text-text-primary hover:bg-bg-surface-alt"
+                      className={MENU_ITEM}
                     >
+                      <Pencil size={15} aria-hidden="true" />
                       Rename
                     </button>
                     <button
@@ -348,8 +270,9 @@ export function Library() {
                         setConfirmingDelete(true);
                         setFolderActionsOpen(false);
                       }}
-                      className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-sm text-red-400 hover:bg-bg-surface-alt"
+                      className={`${MENU_ITEM} text-danger`}
                     >
+                      <Trash2 size={15} aria-hidden="true" />
                       Delete
                     </button>
                   </div>
@@ -358,52 +281,35 @@ export function Library() {
             </div>
 
             {renamingFolder ? (
-              <div className="flex items-center gap-2 rounded-2xl border border-accent/40 bg-bg-surface p-3">
-                <input
-                  autoFocus
-                  value={renameValue}
-                  onChange={(e) => setRenameValue(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleRenameFolder()}
-                  placeholder="Folder name..."
-                  className="min-w-0 flex-1 bg-transparent text-[14px] text-text-primary placeholder:text-text-tertiary focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => setRenamingFolder(false)}
-                  className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-text-secondary"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleRenameFolder}
-                  disabled={!renameValue.trim()}
-                  className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                >
-                  Save
-                </button>
-              </div>
+              <NameForm
+                initial={selectedFolder.name}
+                submitLabel="Save"
+                onCancel={() => setRenamingFolder(false)}
+                onSubmit={(name) => {
+                  renameFolder(selectedFolder.id, name);
+                  setRenamingFolder(false);
+                }}
+              />
             ) : (
-              <p className="text-[17px] font-semibold text-text-primary">{selectedFolder.name}</p>
+              <h2 className="text-xl font-extrabold tracking-tight text-text-primary">{selectedFolder.name}</h2>
             )}
 
             {confirmingDelete && (
-              <div className="flex items-center justify-between gap-2 rounded-xl border border-red-500/40 bg-red-500/10 p-3">
+              <div className="flex items-center justify-between gap-3 rounded-control border border-danger/40 bg-danger/5 p-3">
                 <p className="text-[13px] text-text-primary">
                   Delete "{selectedFolder.name}"? Episodes stay in your library.
                 </p>
                 <div className="flex shrink-0 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setConfirmingDelete(false)}
-                    className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-text-secondary"
-                  >
+                  <button type="button" onClick={() => setConfirmingDelete(false)} className={`${BUTTON_GHOST} px-2.5 py-1.5 text-xs`}>
                     Cancel
                   </button>
                   <button
                     type="button"
-                    onClick={handleDeleteFolder}
-                    className="rounded-lg bg-red-500 px-3 py-1.5 text-xs font-semibold text-white"
+                    onClick={() => {
+                      deleteFolder(selectedFolder.id);
+                      closeFolderView();
+                    }}
+                    className={BUTTON_DANGER}
                   >
                     Delete
                   </button>
@@ -412,177 +318,49 @@ export function Library() {
             )}
 
             {folderEpisodes.length > 0 ? (
-              folderEpisodes.map((ep) => <EpisodeCard key={ep.id} episode={ep} />)
+              <div className="grid gap-3 xl:grid-cols-2">
+                {folderEpisodes.map((ep) => (
+                  <EpisodeCard key={ep.id} episode={ep} />
+                ))}
+              </div>
             ) : (
-              <EmptyState
-                icon="📁"
-                text="No episodes in this folder yet — add one from an episode's ⋯ menu."
-              />
+              <EmptyState icon={FolderOpen} text="No episodes in this folder yet — add one from an episode's options menu." />
             )}
-          </>
+          </div>
         )}
 
         {tab === "folders" && !selectedFolder && (
-          <>
-            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {folders.map((f) => (
                 <FolderCard key={f.id} folder={f} onClick={() => setSelectedFolderId(f.id)} />
               ))}
             </div>
 
             {newFolderOpen ? (
-              <div className="flex items-center gap-2 rounded-2xl border border-accent/40 bg-bg-surface p-3">
-                <input
-                  autoFocus
-                  value={newFolderName}
-                  onChange={(e) => setNewFolderName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleCreateFolder()}
-                  placeholder="Folder name..."
-                  className="min-w-0 flex-1 bg-transparent text-[14px] text-text-primary placeholder:text-text-tertiary focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNewFolderOpen(false);
-                    setNewFolderName("");
-                  }}
-                  className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-text-secondary"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCreateFolder}
-                  disabled={!newFolderName.trim()}
-                  className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                >
-                  Create
-                </button>
-              </div>
+              <NameForm
+                submitLabel="Create"
+                onCancel={() => setNewFolderOpen(false)}
+                onSubmit={(name) => {
+                  addFolder(name);
+                  setNewFolderOpen(false);
+                }}
+              />
             ) : (
               <button
                 type="button"
                 onClick={() => setNewFolderOpen(true)}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border py-4 text-sm font-medium text-text-secondary hover:border-accent/60 hover:text-accent"
+                className="flex w-full items-center justify-center gap-2 rounded-card border border-dashed border-border py-4 text-sm font-semibold text-text-secondary transition-colors hover:border-accent/60 hover:text-accent"
               >
-                + New Folder
+                <FolderPlus size={16} aria-hidden="true" />
+                New Folder
               </button>
             )}
 
-            {folders.length === 0 && !newFolderOpen && (
-              <EmptyState icon="📁" text="No custom folders yet." />
-            )}
-          </>
+            {folders.length === 0 && !newFolderOpen && <EmptyState icon={FolderOpen} text="No custom folders yet." />}
+          </div>
         )}
       </div>
-
-      {tab === "takeaways" && (
-        <div className="mt-1 space-y-2.5 px-5 md:px-0">
-          {takeaways.length > 0 ? (
-            takeaways.map((note) => <TakeawayCard key={note.id} note={note} />)
-          ) : (
-            <EmptyState icon="⭐" text="No takeaways yet — save your first highlight." />
-          )}
-        </div>
-      )}
-
-      {tab === "discover" && (
-        <div className="mt-1 px-5 md:px-0">
-          {/* One field for both ways in: a pasted link is looked up, anything
-              else is searched. Either way the result is a preview card and
-              "+ Add to Library" is the only thing that adds. The icon and
-              button label switch as you type, so the field says which it's
-              about to do. */}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (pastedYoutubeLink) lookupYoutubeVideo();
-              else runDiscoverSearch();
-            }}
-            className="flex gap-2"
-          >
-            <div className="flex-1">
-              <SearchBar
-                value={discoverQuery}
-                onChange={setDiscoverQuery}
-                placeholder="Search podcasts, or paste a YouTube link..."
-                icon={pastedYoutubeLink ? "🔗" : "🔍"}
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={youtubeLoading || discoverLoading || !discoverQuery.trim()}
-              className="shrink-0 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent/90 disabled:opacity-50"
-            >
-              {youtubeLoading
-                ? "Looking up…"
-                : discoverLoading
-                  ? "Searching…"
-                  : pastedYoutubeLink
-                    ? "Look up"
-                    : "Search"}
-            </button>
-          </form>
-
-          {youtubeError && <p className="mt-3 text-sm text-text-secondary">{youtubeError}</p>}
-
-          {youtubeResult && (
-            <div className="mt-3">
-              <DiscoverResultCard
-                episode={youtubeResult}
-                added={episodes.some((e) => e.id === youtubeResult.id)}
-                onAdd={() => addEpisode(youtubeResult)}
-              />
-            </div>
-          )}
-
-          {discoverError && (
-            <p className="mt-3 text-sm text-text-secondary">{discoverError}</p>
-          )}
-
-          {discoverLoading && (
-            <div className="mt-3 space-y-2.5">
-              {[0, 1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="flex animate-pulse items-center gap-3 rounded-2xl border border-border bg-bg-surface p-3"
-                >
-                  <div className="h-12 w-12 shrink-0 rounded-xl bg-bg-surface-alt" />
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <div className="h-3.5 w-3/4 rounded bg-bg-surface-alt" />
-                    <div className="h-3 w-1/2 rounded bg-bg-surface-alt" />
-                  </div>
-                  <div className="h-7 w-16 shrink-0 rounded-lg bg-bg-surface-alt" />
-                </div>
-              ))}
-            </div>
-          )}
-
-          {!discoverLoading && (
-            <div className="mt-3 space-y-2.5">
-              {discoverResults.map((ep) => (
-                <DiscoverResultCard
-                  key={ep.id}
-                  episode={ep}
-                  added={episodes.some((e) => e.id === ep.id)}
-                  onAdd={() => addEpisode(ep)}
-                />
-              ))}
-            </div>
-          )}
-
-          {discoverSearched && !discoverLoading && discoverResults.length === 0 && !discoverError && (
-            <EmptyState icon="🔍" text="No episodes found for that search — try a different term." />
-          )}
-
-          {!discoverSearched && !discoverLoading && (
-            <p className="mt-6 text-center text-sm text-text-tertiary">
-              Search real podcasts via iTunes — added episodes play with real audio. Or paste a
-              YouTube link to keep notes on a video you watch there.
-            </p>
-          )}
-        </div>
-      )}
     </div>
   );
 }
