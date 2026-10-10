@@ -55,6 +55,8 @@ All commands run from the repository root. The Vercel config expects the fronten
 
 ## Trunk-Based Development
 
+For the complete branch naming, PR lifecycle, hotfix, release, and deployment policy, see [`docs/BRANCHING_STRATEGY.md`](docs/BRANCHING_STRATEGY.md).
+
 PodMark uses **trunk-based development**. `master` is the only long-lived integration branch and must remain releasable.
 
 - **Start from the trunk.** Create every `feat/*`, `fix/*`, `chore/*`, or `docs/*` branch from the latest `master`. Do not use long-lived `develop`, release, or integration branches.
