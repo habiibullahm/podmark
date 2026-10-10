@@ -1,8 +1,9 @@
 name: Publish PodMark for Coolify
 
 on:
+  # Any base branch, so stacked PRs are tested too; publishing and deploying
+  # still happen only on pushes to master.
   pull_request:
-    branches: [master]
   push:
     branches: [master]
   workflow_dispatch:
@@ -34,10 +35,10 @@ jobs:
       - run: npm run lint
       - run: npm run build
         env:
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
-      - name: Compile deployment backend
-        run: ./node_modules/.bin/tsc -p tsconfig.deploy.json
+          VITE_NEON_AUTH_URL: ${{ vars.VITE_NEON_AUTH_URL }}
+          VITE_NEON_DATA_API_URL: ${{ vars.VITE_NEON_DATA_API_URL }}
+      - name: Auth (Neon JWT/JWKS) tests — also compiles backend to build/
+        run: npm run test:api
       - name: Smoke + security tests (source)
         run: node tests/deployment-smoke.mjs
       - name: Install Playwright browsers
@@ -78,16 +79,22 @@ jobs:
           done
           exit 1
       - name: Build image
+        env:
+          VITE_NEON_AUTH_URL: ${{ vars.VITE_NEON_AUTH_URL }}
+          VITE_NEON_DATA_API_URL: ${{ vars.VITE_NEON_DATA_API_URL }}
         run: |
           docker build \
-            --build-arg VITE_SUPABASE_URL="${{ vars.VITE_SUPABASE_URL }}" \
-            --build-arg VITE_SUPABASE_ANON_KEY="${{ vars.VITE_SUPABASE_ANON_KEY }}" \
+            --build-arg VITE_NEON_AUTH_URL \
+            --build-arg VITE_NEON_DATA_API_URL \
             --label org.opencontainers.image.revision="$GITHUB_SHA" \
             --tag "$IMAGE:$GITHUB_SHA" .
+      # The smoke test serves a stand-in Neon Auth JWKS on the runner at
+      # :31688; the container reaches it through host.docker.internal.
       - name: Start container
         run: |
           docker run -d --name podmark -p 3000:3000 \
-            -e SUPABASE_JWT_SECRET=podmark-smoke-test-secret-not-used-anywhere-real \
+            --add-host=host.docker.internal:host-gateway \
+            -e NEON_AUTH_URL=http://host.docker.internal:31688/neondb/auth \
             -e RATE_LIMIT_SUMMARIZE_PER_USER_HOUR=2 \
             -e RATE_LIMIT_YT_TRANSCRIPT_PER_HOUR=3 \
             "$IMAGE:$GITHUB_SHA"
@@ -104,6 +111,7 @@ jobs:
         run: node tests/deployment-smoke.mjs
         env:
           SMOKE_BASE_URL: http://127.0.0.1:3000
+          SMOKE_NEON_AUTH_URL: http://host.docker.internal:31688/neondb/auth
       - name: Container checks (non-root, graceful stop, size)
         run: |
           test "$(docker exec podmark id -un)" = node
@@ -125,8 +133,38 @@ jobs:
           docker push "$IMAGE:latest"
           echo "Published $IMAGE:$GITHUB_SHA (rollback target) and :latest" >> "$GITHUB_STEP_SUMMARY"
 
-  deploy:
+  # Applies backend/neon/migrations to the Neon production branch, then runs
+  # the self-cleaning RLS check. Runs before deploy, so migrations must stay
+  # backward compatible with the image still serving (add, don't rename/drop).
+  migrate:
     needs: image
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: neon-migrate
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Apply migrations and verify RLS
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "NEON_DATABASE_URL secret not set; skipping migrations." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          npm run db:migrate
+          npm run db:verify
+          echo "Neon migrations applied; RLS check passed." >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    needs: [image, migrate]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5

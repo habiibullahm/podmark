@@ -1,18 +1,19 @@
 // Smoke + security tests for the deployment server. Two modes:
 //   node tests/deployment-smoke.mjs                 spawns server/index.mjs
 //   SMOKE_BASE_URL=http://127.0.0.1:3000 node ...   tests a running container
-// A container under test must be started with the same SMOKE_ENV below
-// (CI does this) so auth and rate-limit assertions line up.
+// A container under test must be started with NEON_AUTH_URL = SMOKE_NEON_AUTH_URL
+// and the RATE_LIMIT_* values below (CI does this) so auth and rate-limit
+// assertions line up. Tokens come from a local stand-in for Neon Auth
+// (tests/neonAuthFixture.mjs) that the server verifies over HTTP via JWKS.
 //
 // No paid provider is ever called: provider keys are absent, so an
 // authenticated request stops at the backend's 503 "not configured".
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { setTimeout as wait } from "node:timers/promises";
-import { SignJWT } from "jose";
+import { startNeonAuthFixture } from "./neonAuthFixture.mjs";
 
 export const SMOKE_ENV = {
-  SUPABASE_JWT_SECRET: "podmark-smoke-test-secret-not-used-anywhere-real",
   RATE_LIMIT_SUMMARIZE_PER_USER_HOUR: "2",
   RATE_LIMIT_YT_TRANSCRIPT_PER_HOUR: "3",
 };
@@ -20,24 +21,20 @@ export const SMOKE_ENV = {
 const external = process.env.SMOKE_BASE_URL;
 const port = 31687;
 const base = external ?? `http://127.0.0.1:${port}`;
+// Fixed port: a container under test is told this URL before the fixture
+// starts (as http://host.docker.internal:31688/neondb/auth).
+const neon = await startNeonAuthFixture(process.env.SMOKE_NEON_AUTH_URL ?? "http://127.0.0.1:31688/neondb/auth");
 let server;
 
 if (!external) {
-  const env = { ...process.env, ...SMOKE_ENV, PORT: String(port) };
-  for (const name of ["SUMOPOD_API_KEY", "GROQ_API_KEY", "SUPABASE_URL", "GETYOUTUBETRANSCRIPT_API_KEY", "TRUST_PROXY"]) {
+  const env = { ...process.env, ...SMOKE_ENV, NEON_AUTH_URL: neon.authUrl, PORT: String(port) };
+  for (const name of ["SUMOPOD_API_KEY", "GROQ_API_KEY", "GETYOUTUBETRANSCRIPT_API_KEY", "TRUST_PROXY"]) {
     delete env[name];
   }
   server = spawn(process.execPath, ["server/index.mjs"], { env, stdio: "inherit" });
 }
 
-function token(sub, secret = SMOKE_ENV.SUPABASE_JWT_SECRET, expiresIn = "5m") {
-  return new SignJWT({ role: "authenticated" })
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject(sub)
-    .setIssuedAt()
-    .setExpirationTime(expiresIn)
-    .sign(new TextEncoder().encode(secret));
-}
+const token = (sub, options = {}) => neon.sign({ sub, ...options });
 
 function post(path, body, headers = {}) {
   return fetch(base + path, {
@@ -145,11 +142,12 @@ try {
     await check(`auth: ${path} without token is 401`, async () => {
       assert.equal((await post(path, { title: "t", audioUrl: "https://example.com/a.mp3" })).status, 401);
     });
-    await check(`auth: ${path} with forged/expired/garbage token is 401`, async () => {
-      const forged = await token("attacker", "wrong-secret");
-      const expired = await token("user-a", SMOKE_ENV.SUPABASE_JWT_SECRET, "-1m");
+    await check(`auth: ${path} with forged/expired/anonymous/garbage token is 401`, async () => {
+      const forged = await token("attacker", { key: await neon.otherKey() });
+      const expired = await token("user-a", { expiresIn: "-1m" });
+      const anonymous = await token("anon", { role: "anonymous" });
       const unsigned = `${Buffer.from('{"alg":"none"}').toString("base64url")}.${Buffer.from('{"sub":"x"}').toString("base64url")}.`;
-      for (const value of [forged, expired, unsigned, "garbage"]) {
+      for (const value of [forged, expired, anonymous, unsigned, "garbage"]) {
         const res = await post(path, { title: "t" }, { Authorization: `Bearer ${value}` });
         assert.equal(res.status, 401);
       }
@@ -182,4 +180,5 @@ try {
   console.log(`PodMark deployment smoke tests passed (${results.length} checks against ${base}).`);
 } finally {
   server?.kill("SIGTERM");
+  await neon.close();
 }
