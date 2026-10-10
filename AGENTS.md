@@ -71,14 +71,16 @@ Keep the subject under 72 characters. Include a body only when it adds context a
 
 ## Environment & Secrets
 
-- **`GROQ_API_KEY`** — required for AI summarization and transcription. Add to Vercel Production env before deploying.
+- **`SUMOPOD_API_KEY`** — primary provider for AI summarization (optional `SUMOPOD_MODEL`, default `deepseek-v4-flash`).
+- **`GROQ_API_KEY`** — required for transcription (Whisper); also the summarization fallback when SumoPod is unset or fails. Add provider keys to Vercel Production env before deploying.
+- **`SUPABASE_URL`** (ES256) or **`SUPABASE_JWT_SECRET`** (HS256) — server-side session verification for the paid `/api/summarize` and `/api/transcribe` endpoints.
 - **`VITE_SUPABASE_URL`** and **`VITE_SUPABASE_ANON_KEY`** — Supabase project credentials for the frontend.
 - All secrets go through Vercel environment variables or `.env.local` (which is gitignored). Never commit secrets.
-- An `.env.example` at the workspace root documents required variables.
+- `README.md` (Environment section) documents the required variables.
 
 ## Architecture Notes
 
 - **State:** Zustand stores with `persist` middleware (currently `localStorage`; Supabase sync in Phase 1).
-- **AI:** Groq API (`openai/gpt-oss-120b` for summaries, `whisper-large-v3-turbo` for transcription).
+- **AI:** SumoPod (`deepseek-v4-flash`) for summaries with Groq (`openai/gpt-oss-120b`) as fallback; Groq `whisper-large-v3-turbo` for transcription.
 - **Auth (Phase 1):** Supabase magic-link authentication with Row Level Security.
 - **Deployment:** Single Vercel project. Hash routing via React Router — no SSR.
