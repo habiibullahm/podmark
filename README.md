@@ -29,6 +29,7 @@ vercel dev --listen 3001    # app + /api/* together; use this to exercise AI or 
 npm run build               # -> frontend/dist
 npm run typecheck           # frontend, backend, and api
 npm run test:e2e            # Playwright, desktop + mobile Chrome (add --workers=2 on a busy machine)
+npm run test:api            # Neon Auth JWT verification (compiles backend/ to build/)
 npm run lint
 ```
 
@@ -36,14 +37,18 @@ npm run lint
 
 `api/summarize.ts` needs `SUMOPOD_API_KEY` (optionally `SUMOPOD_MODEL`, default `deepseek-v4-flash` — model access is restricted per key, check what's available on yours). SumoPod (`ai.sumopod.com`) is an OpenAI-compatible chat completions gateway; it doesn't expose an audio transcription endpoint, so `api/transcribe.ts` still needs `GROQ_API_KEY` for Whisper. For local `vercel dev`, pull env vars with `vercel env pull .env.local --environment=development` rather than hand-editing the file. YouTube lookup needs no key.
 
-**Accounts (Supabase).** Optional — without these, the app runs fully signed-out on local `localStorage` data, exactly as before, and `/api/summarize` stays open. To enable accounts:
+**Accounts (Neon).** Optional — without these, the app runs fully signed-out on local `localStorage` data, and `/api/summarize` / `/api/transcribe` stay open. Accounts use Neon Auth (managed Better Auth) for sign-in and the Neon Data API (PostgREST) for sync, with Row Level Security keyed on the JWT's `sub`. To enable accounts on a Neon branch:
 
-1. Create a Supabase project. Under **Authentication → URL Configuration**, set the Site URL to the deployed origin and add `http://localhost:3001` / `http://localhost:5173` as redirect URLs. Under **Authentication → Providers → Email**, enable email sign-in with "Confirm email" off (the magic link itself is the confirmation).
-2. Run `backend/supabase/migrations/0001_init.sql` against the project (Supabase CLI `supabase db push`, or paste it into the SQL editor).
-3. Set frontend env vars (Vite, public — safe in the browser): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
-4. Set exactly one server env var (Vercel, secret) matching the project's JWT signing algorithm (**Settings → API → JWT**): `SUPABASE_JWT_SECRET` for HS256, or `SUPABASE_URL` for ES256 (its JWKS is derived from the URL). This is what `/api/summarize` uses to verify a session token locally, with no per-request network call.
+1. In the Neon Console (or `neon` CLI), enable **Auth** and the **Data API** on the branch. Keep email/password on; magic link uses Neon's shared sender until a custom SMTP provider is configured. Add the deployed origin as a trusted domain (`neon neon-auth domain add https://…`).
+2. Apply the schema with the branch owner's connection string, then check RLS (the check writes and deletes rows for two fake user ids only):
+   ```bash
+   DATABASE_URL="<owner connection string>" npm run db:migrate
+   DATABASE_URL="<owner connection string>" npm run db:verify
+   ```
+3. Set frontend env vars (Vite, public — the browser calls these directly): `VITE_NEON_AUTH_URL`, `VITE_NEON_DATA_API_URL`.
+4. Set the server env var `NEON_AUTH_URL` (same value as `VITE_NEON_AUTH_URL`). `/api/summarize` and `/api/transcribe` verify the session JWT against its JWKS locally — Ed25519 only, issuer and audience pinned, and Neon's anonymous tokens rejected.
 
-Never put the Supabase **service-role** key anywhere in this repo or in a `VITE_`-prefixed env var — it belongs only in the Supabase dashboard.
+The owner connection string is only for migrations; it never goes into the app, a `VITE_` variable, or CI.
 
 ## Server code conventions
 

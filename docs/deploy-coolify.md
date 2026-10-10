@@ -1,12 +1,12 @@
 # PodMark on Coolify (Sumopod VPS)
 
-This deployment **does not require a database on the VPS**. It serves the Vite PWA and the existing `/api/*` behavior from one Node.js container. Supabase stays managed. The existing Vercel deployment continues to work.
+This deployment **does not require a database on the VPS**. It serves the Vite PWA and the existing `/api/*` behavior from one Node.js container. The database, auth and data API are managed by Neon. The existing Vercel deployment continues to work.
 
 ## Architecture
 
 GitHub Actions (tests, Docker image build) -> GHCR -> Coolify Docker Image -> VPS (port 3000) -> Traefik HTTPS. Coolify does not build source on the 4 GB VPS.
 
-Endpoints: `GET /healthz`, `POST /api/youtube`, `POST /api/youtube-transcript`, `POST /api/summarize`, `POST /api/transcribe`, and static PWA assets — the same set as `api/*.ts` on Vercel. Paid AI endpoints continue to **require a verified Supabase session**.
+Endpoints: `GET /healthz`, `POST /api/youtube`, `POST /api/youtube-transcript`, `POST /api/summarize`, `POST /api/transcribe`, and static PWA assets — the same set as `api/*.ts` on Vercel. Paid AI endpoints **require a verified Neon Auth session** (JWT checked against the Neon Auth JWKS).
 
 ### Abuse protection
 
@@ -28,8 +28,8 @@ All `/api/*` routes are rate-limited in memory (single container). Paid routes c
 
 In repository **Settings > Secrets and variables > Actions > Variables** set the PUBLIC Vite build variables:
 
-- `VITE_SUPABASE_URL`: URL of the existing managed Supabase project.
-- `VITE_SUPABASE_ANON_KEY`: browser-safe Supabase anon/publishable key supported by this app.
+- `VITE_NEON_AUTH_URL`: the Neon Auth URL of the branch (`neon neon-auth status`), e.g. `https://ep-….neonauth.<region>.aws.neon.tech/neondb/auth`.
+- `VITE_NEON_DATA_API_URL`: the branch's Data API URL (`neon data-api get`), e.g. `https://ep-….apirest.<region>.aws.neon.tech/neondb/rest/v1`.
 
 They are baked into browser assets during GitHub Actions build. Changing them only in Coolify at runtime will **not** change the frontend bundle. If accounts are disabled, the app runs in signed-out localStorage mode but AI endpoints will return 401, by design.
 
@@ -73,18 +73,17 @@ Leave container ports private; expose the public site through the Coolify Traefi
 | `SUMOPOD_MODEL` | Optional | Must be allowed by the key |
 | `GROQ_API_KEY` | Transcription; summary fallback | **Use a valid, current key** |
 | `GROQ_MODEL` | Optional summary fallback | Defaults in backend |
-| `SUPABASE_URL` | ES256/JWKS JWT validation | Use same Supabase project as frontend |
-| `SUPABASE_JWT_SECRET` | Legacy HS256 JWT validation | Do not set a guessed value |
+| `NEON_AUTH_URL` | Session verification on paid AI endpoints | Same value as `VITE_NEON_AUTH_URL`; not a secret |
 | `GETYOUTUBETRANSCRIPT_API_KEY` | Optional YouTube transcript provider | Server-only secret |
 | `WEBSHARE_PROXY_USERNAME` / `WEBSHARE_PROXY_PASSWORD` | Optional residential proxy for YouTube transcripts | Server-only secret |
 | `RATE_LIMIT_*` | Optional | See *Abuse protection* |
 | `PORT` | Optional | Defaults to 3000 |
 
-For session verification, configure the JWT setting appropriate to the Supabase signing algorithm. If ES256, set `SUPABASE_URL`; for legacy HS256, use its proper JWT secret (optionally `SUPABASE_URL` for JWKS-first / HS256-fallback behavior). Never put the Supabase service-role key into the frontend or this deployment.
+The container never connects to Postgres directly, so no database connection string belongs in Coolify. The Neon owner connection string is only for `npm run db:migrate` / `db:verify` from a trusted machine.
 
 The Groq key used in an earlier PodMark environment was reported expired on October 4, 2026. Replace it before testing transcription.
 
-Add `https://podmark.habiibullahm.my.id` to Supabase Authentication redirect allow-list. If this becomes the primary app URL, update the Supabase Site URL accordingly, while retaining any needed Vercel preview/legacy redirects.
+Add `https://podmark.habiibullahm.my.id` as a Neon Auth trusted domain on the branch: `neon neon-auth domain add https://podmark.habiibullahm.my.id --project-id <id> --branch production`.
 
 ## 4. Automatic redeploy (optional)
 
@@ -96,7 +95,7 @@ For stronger reproducibility, deploy and retain the image's immutable SHA tag, n
 
 `.github/workflows/publish-coolify.yml` runs three jobs:
 
-1. **test** — typecheck, lint, frontend build, smoke/security tests against the Node server, Playwright e2e (desktop + mobile Chrome).
+1. **test** — typecheck, lint, frontend build, Neon Auth JWT tests, smoke/security tests against the Node server, Playwright e2e (desktop + mobile Chrome).
 2. **image** — builds the Docker image, starts it, waits for the Docker `HEALTHCHECK`, re-runs the smoke/security suite **against the container**, and checks it runs as non-root and stops gracefully. Only on `master` does it push `:<sha>` and `:latest` to GHCR.
 3. **deploy** — `master` only: calls the Coolify webhook if configured.
 
@@ -113,7 +112,7 @@ Every `master` commit publishes an immutable `ghcr.io/habiibullahm/podmark:<comm
 3. `curl -I https://podmark.habiibullahm.my.id/` returns 200 HTML.
 4. `POST /api/youtube` and `POST /api/youtube-transcript` with an invalid URL return a controlled 400.
 5. Unauthenticated `POST /api/summarize` returns **401**, not a billed provider call.
-6. Login via Supabase and confirm a valid session.
+6. Create an account / sign in on the Profile screen, add an episode, and confirm it syncs to a second browser signed into the same account.
 7. Test summary and transcription with a small, authorized episode, then inspect logs without exposing tokens.
 8. Test mobile PWA install, refresh, and static assets.
 9. Monitor `free -h`, `df -h /`, container memory/CPU, and Hermes gateway resource usage.
@@ -126,13 +125,13 @@ Do **not** repoint the existing Vercel production domain or decommission the Ver
 npm ci
 npm run typecheck
 npm run build
-./node_modules/.bin/tsc -p tsconfig.deploy.json
+npm run test:api                  # Neon Auth JWT tests; also compiles backend/ to build/
 node tests/deployment-smoke.mjs   # starts the server itself; no provider is called
 
-# or against a container:
+# or against a container (the test serves a stand-in Neon Auth JWKS on :31688):
 docker build -t podmark:local .
-docker run -d --name podmark-smoke -p 3000:3000   -e SUPABASE_JWT_SECRET=podmark-smoke-test-secret-not-used-anywhere-real   -e RATE_LIMIT_SUMMARIZE_PER_USER_HOUR=2 -e RATE_LIMIT_YT_TRANSCRIPT_PER_HOUR=3 podmark:local
-SMOKE_BASE_URL=http://127.0.0.1:3000 node tests/deployment-smoke.mjs
+docker run -d --name podmark-smoke -p 3000:3000 --add-host=host.docker.internal:host-gateway   -e NEON_AUTH_URL=http://host.docker.internal:31688/neondb/auth   -e RATE_LIMIT_SUMMARIZE_PER_USER_HOUR=2 -e RATE_LIMIT_YT_TRANSCRIPT_PER_HOUR=3 podmark:local
+SMOKE_BASE_URL=http://127.0.0.1:3000 SMOKE_NEON_AUTH_URL=http://host.docker.internal:31688/neondb/auth   node tests/deployment-smoke.mjs
 ```
 
 The legacy Vercel setup remains unchanged: Vercel still builds `frontend/dist` and discovers `api/*.ts` as functions.

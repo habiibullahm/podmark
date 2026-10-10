@@ -28,7 +28,14 @@ export type AuthUser = AuthSession["user"];
 export async function getAccessToken(): Promise<string | null> {
   if (!auth) return null;
   const { data } = await auth.getSession();
-  return data.session?.access_token ?? null;
+  const token = data.session?.access_token;
+  if (!token) return null;
+  // The adapter swaps the opaque session token for the JWT from the
+  // `set-auth-jwt` response header. If that header ever isn't readable
+  // cross-origin, fall back to the JWT plugin's own endpoint (GET /token).
+  if (token.split(".").length === 3) return token;
+  const { data: jwt } = await auth.getBetterAuthInstance().token();
+  return jwt?.token ?? null;
 }
 
 // Neon Data API (PostgREST): same query builder as supabase-js, so sync.ts's

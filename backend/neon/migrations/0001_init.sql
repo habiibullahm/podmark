@@ -1,11 +1,20 @@
--- PodMark Phase 1 schema: one table per client store, each scoped to its
--- owner via Row Level Security. No foreign keys between tables — sync
--- upserts per store, and FK ordering would leave the client wedged on a
--- partial failure. Deletes are soft (deleted_at) so a device that was
--- offline when a record was deleted elsewhere can never resurrect it.
+-- PodMark schema for Neon (Managed Better Auth + Data API).
+-- Ported from the original Supabase migrations (0001_init + 0002_transcripts):
+-- same 9 tables, columns, soft deletes and updated_at trigger. Differences:
+--   * user_id is text, defaulting to auth.user_id() (pg_session_jwt). Better
+--     Auth ids aren't guaranteed UUIDs, and auth.uid() returns NULL for a
+--     non-UUID sub — which would silently break every insert.
+--   * Policies target the `authenticated` role explicitly; `anonymous` gets
+--     no grants at all. No DELETE grant: the client only soft-deletes.
+-- Prerequisite: Data API enabled on the branch (creates pg_session_jwt and
+-- the authenticated/anonymous roles). Run as the branch owner (neondb_owner).
 
--- Maintains updated_at on every row this trigger is attached to, so a
--- client's own updatedAt is never the only clock last-write-wins can trust.
+-- Note: the `auth` schema (pg_session_jwt) is owned by cloud_admin and
+-- `authenticated` has no USAGE on it, so a direct `select auth.user_id()`
+-- from that role fails. That's fine: the defaults and policies below are
+-- resolved when this script (run as the owner) creates them, so they execute
+-- for `authenticated` without schema usage. Verified by scripts/db-verify.mjs.
+
 create or replace function set_updated_at()
 returns trigger as $$
 begin
@@ -15,7 +24,7 @@ end;
 $$ language plpgsql;
 
 create table if not exists episodes (
-  user_id uuid not null default auth.uid(),
+  user_id text not null default auth.user_id(),
   id text not null,
   title text not null,
   show text not null,
@@ -35,7 +44,7 @@ create table if not exists episodes (
 );
 
 create table if not exists notes (
-  user_id uuid not null default auth.uid(),
+  user_id text not null default auth.user_id(),
   id text not null,
   episode_id text not null,
   type text not null,
@@ -49,7 +58,7 @@ create table if not exists notes (
 );
 
 create table if not exists freeform_notes (
-  user_id uuid not null default auth.uid(),
+  user_id text not null default auth.user_id(),
   episode_id text not null,
   text text not null default '',
   updated_at timestamptz not null default now(),
@@ -58,7 +67,7 @@ create table if not exists freeform_notes (
 );
 
 create table if not exists ai_summaries (
-  user_id uuid not null default auth.uid(),
+  user_id text not null default auth.user_id(),
   episode_id text not null,
   bullets text[] not null default '{}',
   error text,
@@ -68,7 +77,7 @@ create table if not exists ai_summaries (
 );
 
 create table if not exists folders (
-  user_id uuid not null default auth.uid(),
+  user_id text not null default auth.user_id(),
   id text not null,
   name text not null,
   color text not null,
@@ -79,7 +88,7 @@ create table if not exists folders (
 );
 
 create table if not exists settings (
-  user_id uuid not null default auth.uid(),
+  user_id text not null default auth.user_id(),
   daily_goal_target integer not null default 30,
   notifications_enabled boolean not null default true,
   export_format text not null default 'obsidian',
@@ -89,7 +98,7 @@ create table if not exists settings (
 );
 
 create table if not exists activity (
-  user_id uuid not null default auth.uid(),
+  user_id text not null default auth.user_id(),
   date text not null,
   minutes numeric not null default 0,
   updated_at timestamptz not null default now(),
@@ -98,7 +107,7 @@ create table if not exists activity (
 );
 
 create table if not exists progress (
-  user_id uuid not null default auth.uid(),
+  user_id text not null default auth.user_id(),
   episode_id text not null,
   seconds numeric not null default 0,
   updated_at timestamptz not null default now(),
@@ -106,31 +115,32 @@ create table if not exists progress (
   primary key (user_id, episode_id)
 );
 
--- One trigger per table, all sharing the same function above.
+create table if not exists transcripts (
+  user_id text not null default auth.user_id(),
+  episode_id text not null,
+  segments jsonb not null default '[]',
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz,
+  primary key (user_id, episode_id)
+);
+
 do $$
 declare
   t text;
 begin
-  foreach t in array array['episodes', 'notes', 'freeform_notes', 'ai_summaries', 'folders', 'settings', 'activity', 'progress']
+  foreach t in array array['episodes', 'notes', 'freeform_notes', 'ai_summaries', 'folders', 'settings', 'activity', 'progress', 'transcripts']
   loop
     execute format(
       'drop trigger if exists set_updated_at on %I; create trigger set_updated_at before update on %I for each row execute function set_updated_at();',
       t, t
     );
-  end loop;
-end $$;
-
--- Row Level Security: every table readable/writable only by its own owner.
-do $$
-declare
-  t text;
-begin
-  foreach t in array array['episodes', 'notes', 'freeform_notes', 'ai_summaries', 'folders', 'settings', 'activity', 'progress']
-  loop
+    -- Override the Data API's default grants with the exact set sync needs.
+    execute format('revoke all on %I from anonymous, authenticated;', t);
+    execute format('grant select, insert, update on %I to authenticated;', t);
     execute format('alter table %I enable row level security;', t);
     execute format('drop policy if exists owner_access on %I;', t);
     execute format(
-      'create policy owner_access on %I using (auth.uid() = user_id) with check (auth.uid() = user_id);',
+      'create policy owner_access on %I for all to authenticated using (user_id = auth.user_id()) with check (user_id = auth.user_id());',
       t
     );
   end loop;

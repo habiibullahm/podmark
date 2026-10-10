@@ -1,13 +1,13 @@
 import { test, expect } from "@playwright/test";
 
-// This CI/dev environment has no Supabase project configured (no
-// VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY), which is deliberate — it's
+// This CI/dev environment has no Neon Auth project configured (no
+// VITE_NEON_AUTH_URL / VITE_NEON_DATA_API_URL), which is deliberate — it's
 // what keeps every other spec in this suite running fully signed-out. These
 // tests lock in that "accounts are optional" contract: the identity
 // everywhere is the generic "Guest", not a hard-coded person, and Profile
 // says plainly that accounts aren't set up rather than pretending sign-in
-// works. The actual magic-link flow against a real Supabase project can
-// only be verified by hand, in a real browser, once a project exists.
+// works. Sign-in against the real Neon Auth project is checked by hand in
+// a real browser; RLS is covered by `npm run db:verify`.
 test.describe("Accounts (unconfigured deployment)", () => {
   test("Profile explains accounts aren't set up, with no broken sign-in UI", async ({ page }) => {
     await page.goto("/#/profile");

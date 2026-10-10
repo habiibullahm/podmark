@@ -1,5 +1,13 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// Fake Neon endpoints for the accounts specs (e2e/neon-*.spec.ts). Nothing is
+// served at these hosts — every request is intercepted with page.route().
+export const NEON_TEST_AUTH_URL = "https://auth.neon.test/neondb/auth";
+export const NEON_TEST_DATA_API_URL = "https://data.neon.test/neondb/rest/v1";
+
+// Anchored to the file name: Playwright matches against the absolute path.
+const ACCOUNTS_SPECS = /[\\/]neon-[^\\/]*\.spec\.ts$/;
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
@@ -12,19 +20,34 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile-chrome", use: { ...devices["Pixel 7"] } },
+    { name: "chromium", testIgnore: ACCOUNTS_SPECS, use: { ...devices["Desktop Chrome"] } },
+    { name: "mobile-chrome", testIgnore: ACCOUNTS_SPECS, use: { ...devices["Pixel 7"] } },
+    {
+      name: "accounts",
+      testMatch: ACCOUNTS_SPECS,
+      use: { ...devices["Desktop Chrome"], baseURL: "http://localhost:5174" },
+    },
   ],
-  webServer: {
-    command: "npm run dev",
-    url: "http://localhost:5173",
-    reuseExistingServer: !process.env.CI,
-    timeout: 30_000,
-    // The suite's baseline guarantee is that the app works fully signed-out
-    // with no Supabase project configured — that's what keeps every non-auth
-    // spec valid regardless of accounts. Force that here so a developer's own
-    // frontend/.env.local (set up for manual `vercel dev` testing) can't
-    // silently make this run exercise a different, non-hermetic code path.
-    env: { VITE_SUPABASE_URL: "", VITE_SUPABASE_ANON_KEY: "" },
-  },
+  webServer: [
+    {
+      command: "npm run dev",
+      url: "http://localhost:5173",
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+      // The suite's baseline guarantee is that the app works fully signed-out
+      // with no Neon Auth project configured — that's what keeps every non-auth
+      // spec valid regardless of accounts. Force that here so a developer's own
+      // frontend/.env.local can't silently make this run exercise a different,
+      // non-hermetic code path.
+      env: { VITE_NEON_AUTH_URL: "", VITE_NEON_DATA_API_URL: "" },
+    },
+    {
+      // Same app with accounts switched on, pointed at the fake Neon hosts.
+      command: "npm run dev -- --port 5174 --strictPort",
+      url: "http://localhost:5174",
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+      env: { VITE_NEON_AUTH_URL: NEON_TEST_AUTH_URL, VITE_NEON_DATA_API_URL: NEON_TEST_DATA_API_URL },
+    },
+  ],
 });
