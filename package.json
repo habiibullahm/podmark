@@ -18,7 +18,7 @@
     "test:e2e:ui": "npm run test:e2e:ui --workspace=frontend",
     "db:migrate": "node scripts/db-migrate.mjs",
     "db:verify": "node scripts/db-verify.mjs",
-    "test:api": "tsc -p tsconfig.deploy.json && node --test tests/auth.test.mjs"
+    "test:api": "tsc -p tsconfig.test.json && node --test tests/auth.test.mjs tests/api.test.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

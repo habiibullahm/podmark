@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-PodMark is a podcast tracker and learning journal PWA (search episodes, play, take timestamped notes, AI summaries, export to Obsidian/Notion). See `AGENTS.md` for style, commit, and trunk-based branching rules (short-lived branches off `master`, no stacked PRs), `README.md` for env setup, `docs/PRD.md` for product scope, and `docs/deploy-coolify.md` for the Docker/Coolify deployment.
+PodMark is a podcast tracker and learning journal PWA (search episodes, play, take timestamped notes, AI summaries, export to Obsidian/Notion). See `AGENTS.md` for style, commit, and trunk-based branching rules (short-lived branches off `master`, no stacked PRs), `README.md` for env setup, and `docs/PRD.md` for product scope. Hosting is Vercel via its Git integration (PR previews, `master` → production); see the README's Deploy section.
 
 ## Commands
 
@@ -17,22 +17,16 @@ npm run lint                 # oxlint
 npm run test:e2e             # Playwright, desktop + mobile Chrome; starts `npm run dev` itself
 npm run test:e2e -- e2e/discover.spec.ts      # single spec (path relative to frontend/)
 cd frontend && npx playwright test e2e/discover.spec.ts --project=chromium -g "test name"   # Playwright flags need direct invocation
-npm run test:api             # node:test for Neon Auth JWT verification (compiles backend/ to build/ first)
-node tests/deployment-smoke.mjs                # smoke/security tests for server/index.mjs; needs build/ (below)
-DATABASE_URL=... npm run db:migrate            # apply backend/neon/migrations/ (owner connection string; never in app/CI vars)
+npm run test:api             # node:test: Vercel handlers + Neon JWT verification (compiles api/ + backend/ to build/ via tsconfig.test.json)
+DATABASE_URL=... npm run db:migrate            # apply backend/neon/migrations/ (owner connection string; only ever a GitHub secret)
 DATABASE_URL=... npm run db:verify             # check RLS isolation (writes/deletes rows for two fake user ids)
-./node_modules/.bin/tsc -p tsconfig.deploy.json  # compile backend/src -> build/ for the Node server
 ```
 
-CI (`.github/workflows/publish-coolify.yml`) runs typecheck, lint, build, API/smoke tests, and `test:e2e -- --workers=2`, then builds and smoke-tests the Docker image. On push to `master` it also applies Neon migrations and verifies RLS before deploy.
+CI (`.github/workflows/ci.yml`) runs typecheck, lint, build, `test:api`, and `test:e2e -- --workers=2` on PRs and `master`; on push to `master` it also applies Neon migrations and verifies RLS. Deploys are not in CI: Vercel's Git integration builds a preview per PR and deploys production from `master`.
 
 ## Architecture
 
-**Two deployment targets share one backend.** All server logic lives in `backend/src/` as framework-agnostic functions that take a plain input plus an `env` object and return `{ status, body }`. Two thin adapters wrap it:
-- `api/*.ts` — Vercel functions (method guard, auth check, `res.status().json()`).
-- `server/index.mjs` — plain Node HTTP server for the Docker/Coolify image. It imports the *compiled* backend from `build/` (via `tsconfig.deploy.json`), serves `frontend/dist` with SPA fallback, exposes `/healthz`, and adds in-memory rate limiting (`server/rateLimit.mjs`).
-
-When adding or changing an endpoint, update **both** `api/<name>.ts` and the `ROUTES` table in `server/index.mjs` (it mirrors `api/` one-to-one), plus `tests/deployment-smoke.mjs` if behavior is security-relevant.
+**Backend = Vercel functions over plain TS.** All server logic lives in `backend/src/` as framework-agnostic functions that take a plain input plus an `env` object and return `{ status, body }`. `api/*.ts` are thin Vercel adapters (method guard, auth check, `res.status().json()`); Vercel serves `frontend/dist` and `api/` from one origin (`vercel.json`). When adding or changing an endpoint, add a case to `tests/api.test.mjs` if behavior is security-relevant.
 
 **ESM import rule:** relative imports in `api/` and `backend/` must use explicit `.js` extensions (root is `"type": "module"`, compiled with `nodenext`). The frontend (Vite bundler resolution) does not use extensions.
 
@@ -52,4 +46,4 @@ Routing is `HashRouter` (no SSR), so auth redirects must not rely on the URL has
 
 - Playwright runs two dev servers: `:5173` with Neon env vars forced empty (hermetic, signed-out; `chromium` + `mobile-chrome` projects) and `:5174` pointed at fake `*.neon.test` hosts for `e2e/neon-*.spec.ts` (`accounts` project), where every Neon request is intercepted with `page.route()`. Never depend on a real Neon project.
 - `/api/*` is not served by `npm run dev`, so e2e specs that touch API features mock those routes.
-- The smoke and API tests never call paid providers or real Neon: provider keys are stripped and JWTs come from a local fixture (`tests/neonAuthFixture.mjs`).
+- The API tests (`tests/api.test.mjs`, `tests/auth.test.mjs`) never call paid providers or real Neon: provider keys are stripped and JWTs come from a local fixture (`tests/neonAuthFixture.mjs`).

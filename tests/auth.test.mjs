@@ -1,9 +1,9 @@
 // Neon Auth JWT verification (backend/src/auth.ts, compiled to build/ by
-// tsconfig.deploy.json): `npm run test:api`.
+// tsconfig.test.json): `npm run test:api`.
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 import { SignJWT } from "jose";
-import { verifyUser } from "../build/auth.js";
+import { verifyUser } from "../build/backend/src/auth.js";
 import { startNeonAuthFixture } from "./neonAuthFixture.mjs";
 
 let neon;
