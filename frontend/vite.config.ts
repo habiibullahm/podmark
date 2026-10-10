@@ -17,7 +17,29 @@ export default defineConfig(({ mode }) => {
 
   return {
     server: apiProxyTarget
-      ? { proxy: { '/api': { target: apiProxyTarget, changeOrigin: true } } }
+      ? {
+          proxy: {
+            '/api': {
+              target: apiProxyTarget,
+              changeOrigin: true,
+              // One terminal line per proxied call (method, path, status,
+              // time) — the API runs remotely, so this is the only local trace.
+              configure: (proxy) => {
+                const started = new WeakMap<object, number>()
+                proxy.on('proxyReq', (_proxyReq, req) => {
+                  started.set(req, Date.now())
+                })
+                proxy.on('proxyRes', (proxyRes, req) => {
+                  const ms = Date.now() - (started.get(req) ?? Date.now())
+                  console.log(`[api] ${req.method} ${req.url} → ${proxyRes.statusCode} (${ms} ms) via ${apiProxyTarget}`)
+                })
+                proxy.on('error', (err, req) => {
+                  console.error(`[api] ${req.method} ${req.url} → proxy error: ${err.message}`)
+                })
+              },
+            },
+          },
+        }
       : {},
     plugins: [
       react(),
