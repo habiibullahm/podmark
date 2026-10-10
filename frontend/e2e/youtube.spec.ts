@@ -194,3 +194,26 @@ test.describe("YouTube episodes", () => {
     await expect(page.getByText("E2E Mock YouTube Talk")).toHaveCount(0);
   });
 });
+
+test.describe("Playback while viewing a YouTube episode", () => {
+  test("audio that keeps playing still has a visible pause control", async ({ page }) => {
+    await mockMetadata(page);
+    await addMockVideo(page);
+
+    await page.goto("/#/episode/ep-1");
+    await page.getByRole("button", { name: "Play", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Pause", exact: true })).toHaveCount(1);
+
+    // A YouTube episode never loads into the player, so the audio from ep-1
+    // keeps going — its controls (utility panel on desktop, mini player on
+    // mobile) must stay on screen, and still only once.
+    await page.goto("/#/episode/youtube-dQw4w9WgXcQ");
+    await expect(page.getByRole("link", { name: /Watch on YouTube/ })).toBeVisible();
+    const pause = page.getByRole("button", { name: "Pause", exact: true });
+    await expect(pause).toHaveCount(1);
+    await expect(pause).toBeVisible();
+
+    await pause.click();
+    await expect(page.getByRole("button", { name: "Play", exact: true })).toHaveCount(1);
+  });
+});

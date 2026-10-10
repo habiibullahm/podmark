@@ -223,7 +223,7 @@ export function EpisodeDetail() {
   const handleTranscribe = () => generateTranscript(episode);
 
   const handleFetchYoutubeTranscript = async () => {
-    if (!episode?.sourceUrl || youtubeTranscriptLoading) return;
+    if (!episode?.sourceUrl || youtubeTranscriptLoading || summarizeRequiresSignIn) return;
     setYoutubeTranscriptLoading(true);
     const epoch = accountEpoch();
     try {
@@ -263,8 +263,9 @@ export function EpisodeDetail() {
   const canSummarize = !episode.sourceUrl || !!transcript;
   // Audio transcription needs a real audio URL — only applies to iTunes.
   const canTranscribe = !episode.sourceUrl && !!episode.audioUrl;
-  // Both spend AI credits, so once accounts exist they're gated behind
-  // sign-in. Deployments without Neon Auth configured (isAccountsConfigured
+  // All three (summary, transcription, YouTube transcript) spend paid
+  // credits, so once accounts exist they're gated behind sign-in — the API
+  // rejects them without a session anyway. Deployments without Neon Auth configured (isAccountsConfigured
   // false — no env vars set) predate accounts entirely, so both stay open
   // there rather than showing a sign-in prompt for a feature that isn't
   // wired up yet.
@@ -489,7 +490,13 @@ export function EpisodeDetail() {
                   {transcribing ? "Transcribing…" : "Transcribe Episode"}
                 </button>
               )}
-              {episode.sourceUrl && !transcript && (
+              {episode.sourceUrl && !transcript && summarizeRequiresSignIn && (
+                <button type="button" onClick={() => navigate("/profile")} className={`${BUTTON_SECONDARY} w-full justify-start`}>
+                  <Lock size={16} aria-hidden="true" />
+                  Sign in to get transcript
+                </button>
+              )}
+              {episode.sourceUrl && !transcript && !summarizeRequiresSignIn && (
                 <button
                   type="button"
                   onClick={handleFetchYoutubeTranscript}
@@ -627,7 +634,7 @@ export function EpisodeDetail() {
             <RetryNotice icon={Mic} message={transcribeError} busy={transcribing} onRetry={handleTranscribe} />
           )}
 
-          {episode.sourceUrl && transcribeError && !canTranscribe && (
+          {episode.sourceUrl && transcribeError && !canTranscribe && !summarizeRequiresSignIn && (
             <RetryNotice
               icon={FileText}
               message={transcribeError}

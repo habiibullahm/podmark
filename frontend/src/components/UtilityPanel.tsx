@@ -30,9 +30,9 @@ function NothingPlayingCard() {
 }
 
 // Right-hand zone of the desktop layout: what's playing and how today's
-// listening is going. Contextual — the player card only shows
-// while an episode is loaded, and the whole panel steps aside on the
-// episode workspace, which has its own player.
+// listening is going. Contextual — the player card only shows while an
+// episode is loaded, and the panel steps aside on that episode's own
+// workspace, which has the player built in.
 export function UtilityPanel() {
   const { episode } = usePlayer();
   const dailyGoalTarget = useSettingsStore((s) => s.dailyGoalTarget);

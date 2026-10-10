@@ -135,3 +135,64 @@ test.describe("Discover (real podcast search)", () => {
     await expect(page.getByText(/No episodes found/)).toBeVisible();
   });
 });
+
+test.describe("Discover keeps only the newest results", () => {
+  const itunesResult = (trackId: number, trackName: string) => ({
+    resultCount: 1,
+    results: [{ ...MOCK_ITUNES_RESPONSE.results[0], trackId, trackName }],
+  });
+
+  test("a YouTube lookup clears earlier podcast results", async ({ page }) => {
+    await page.route("https://itunes.apple.com/search**", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_ITUNES_RESPONSE) }),
+    );
+    await page.route("/api/youtube", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ videoId: "dQw4w9WgXcQ", title: "E2E Mock YouTube Talk", channel: "E2E Mock Channel" }),
+      }),
+    );
+
+    await page.goto("/#/discover");
+    const field = page.getByPlaceholder("Search podcasts, or paste a YouTube link...");
+    await field.fill("test query");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await expect(page.getByText("E2E Mock Episode")).toBeVisible();
+
+    await field.fill("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+    await page.getByRole("button", { name: "Look up", exact: true }).click();
+    await expect(page.getByText("E2E Mock YouTube Talk")).toBeVisible();
+    await expect(page.getByText("E2E Mock Episode")).toHaveCount(0);
+    await expect(page.getByText(/Results for/)).toHaveCount(0);
+  });
+
+  test("a slower, older search never replaces newer results", async ({ page }) => {
+    let releaseSlow!: () => void;
+    const slowHeld = new Promise<void>((resolve) => (releaseSlow = resolve));
+    await page.route("https://itunes.apple.com/search**", async (route) => {
+      const term = new URL(route.request().url()).searchParams.get("term");
+      if (term === "slow topic") {
+        await slowHeld;
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(itunesResult(1, "Stale Slow Result")) });
+      }
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(itunesResult(2, "Fresh Fast Result")) });
+    });
+
+    await page.goto("/#/discover");
+    const field = page.getByPlaceholder("Search podcasts, or paste a YouTube link...");
+    await field.fill("slow topic");
+    await page.getByRole("button", { name: /Search/ }).click();
+    await field.fill("fast topic");
+    await page.getByRole("button", { name: /Search/ }).click();
+    await expect(page.getByText("Fresh Fast Result")).toBeVisible();
+
+    const slowResponse = page.waitForResponse((r) => r.url().includes("term=slow+topic"));
+    releaseSlow();
+    await slowResponse;
+    await page.waitForTimeout(300);
+    await expect(page.getByText("Stale Slow Result")).toHaveCount(0);
+    await expect(page.getByText("Fresh Fast Result")).toBeVisible();
+    await expect(page.getByText("Results for “fast topic”")).toBeVisible();
+  });
+});

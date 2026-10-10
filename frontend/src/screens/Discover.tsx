@@ -82,6 +82,24 @@ export function Discover() {
   const [youtubeError, setYoutubeError] = useState<string | null>(null);
   const [youtubeResult, setYoutubeResult] = useState<Episode | null>(null);
 
+  // One field, two kinds of result, and requests can overlap (a slow search,
+  // then a corrected one). Every new search or lookup takes over the screen:
+  // it clears whatever the other kind left behind, and only the newest
+  // request's response is ever applied — a slower, older one is dropped.
+  const latestRequest = useRef(0);
+  const startRequest = () => {
+    latestRequest.current += 1;
+    setResults([]);
+    setSearchedTerm(null);
+    setSearchError(null);
+    setYoutubeResult(null);
+    setYoutubeError(null);
+    setLoading(false);
+    setYoutubeLoading(false);
+    return latestRequest.current;
+  };
+  const isCurrent = (requestId: number) => requestId === latestRequest.current;
+
   // Looking up a link only previews it — nothing is added until the user
   // presses "Add to Library" on the card, exactly as with a search result.
   // Adding straight from the field made the two paths behave differently
@@ -90,37 +108,37 @@ export function Discover() {
   const lookupYoutubeVideo = async (value: string) => {
     const url = value.trim();
     if (!url) return;
+    const requestId = startRequest();
     setYoutubeLoading(true);
-    setYoutubeError(null);
-    setYoutubeResult(null);
-    // The two actions share one field, so each clears the other's feedback —
-    // otherwise a failed search stays on screen under a successful lookup.
-    setSearchError(null);
     try {
-      setYoutubeResult(await fetchYouTubeEpisode(url));
+      const episode = await fetchYouTubeEpisode(url);
+      if (!isCurrent(requestId)) return;
+      setYoutubeResult(episode);
       setQuery("");
     } catch (err) {
+      if (!isCurrent(requestId)) return;
       setYoutubeError(err instanceof Error ? err.message : "Couldn't look up that YouTube video.");
     } finally {
-      setYoutubeLoading(false);
+      if (isCurrent(requestId)) setYoutubeLoading(false);
     }
   };
 
   const runSearch = async (value: string) => {
     const term = value.trim();
     if (!term) return;
+    const requestId = startRequest();
     setLoading(true);
-    setSearchError(null);
-    setYoutubeError(null);
-    setYoutubeResult(null);
     try {
-      setResults(await searchPodcastEpisodes(term));
+      const found = await searchPodcastEpisodes(term);
+      if (!isCurrent(requestId)) return;
+      setResults(found);
       setSearchedTerm(term);
     } catch (err) {
+      if (!isCurrent(requestId)) return;
       console.error("Podcast search failed:", err);
       setSearchError("Couldn't reach the podcast search service — check your connection and try again.");
     } finally {
-      setLoading(false);
+      if (isCurrent(requestId)) setLoading(false);
     }
   };
 
@@ -138,7 +156,6 @@ export function Discover() {
   }, []);
 
   const isInLibrary = (id: string) => episodes.some((e) => e.id === id);
-  const busy = youtubeLoading || loading;
 
   return (
     <div>
@@ -167,7 +184,7 @@ export function Discover() {
             icon={pastedYoutubeLink ? Link2 : Search}
           />
         </div>
-        <button type="submit" disabled={busy || !query.trim()} className={`${BUTTON_PRIMARY} px-6 py-3.5`}>
+        <button type="submit" disabled={!query.trim()} className={`${BUTTON_PRIMARY} px-6 py-3.5`}>
           {youtubeLoading ? "Looking up…" : loading ? "Searching…" : pastedYoutubeLink ? "Look up" : "Search"}
         </button>
       </form>
@@ -177,7 +194,6 @@ export function Discover() {
           <button
             key={topic}
             type="button"
-            disabled={busy}
             onClick={() => {
               setQuery(topic);
               void runSearch(topic);

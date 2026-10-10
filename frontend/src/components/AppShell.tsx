@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import { useUIStore } from "../store/useUIStore";
+import { usePlayer } from "../context/PlayerContext";
 import { useIsDesktop } from "../lib/useMediaQuery";
 import { SIDEBAR_LEFT_OFFSET_CLASS, SIDEBAR_PADDING_CLASS, UTILITY_PANEL_PADDING_CLASS } from "../lib/sidebarLayout";
 import { Sidebar } from "./Sidebar";
@@ -19,9 +20,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const collapsed = useUIStore((s) => s.sidebarCollapsed);
   const isDesktop = useIsDesktop();
   const { pathname } = useLocation();
-  // The episode workspace is wide and has its own player, so the panel
-  // steps aside there.
-  const showUtilityPanel = isDesktop && !pathname.startsWith("/episode/");
+  const { episode: loadedEpisode } = usePlayer();
+  // The workspace of the episode loaded in the player has that player's
+  // controls itself, so the panel steps aside there. Anywhere else —
+  // including a YouTube episode, which never loads into the player — the
+  // panel stays, so audio that's playing always has a visible pause.
+  const showUtilityPanel = isDesktop && !(loadedEpisode && pathname === `/episode/${loadedEpisode.id}`);
 
   const sidebarOffset = collapsed ? SIDEBAR_PADDING_CLASS.collapsed : SIDEBAR_PADDING_CLASS.expanded;
   const fixedBarOffset = collapsed ? SIDEBAR_LEFT_OFFSET_CLASS.collapsed : SIDEBAR_LEFT_OFFSET_CLASS.expanded;
