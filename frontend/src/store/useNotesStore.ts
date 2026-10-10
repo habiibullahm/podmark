@@ -2,8 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { noteBlocks as initialNoteBlocks } from "../data/mockData";
 import type { Episode, NoteBlock, NoteBlockType } from "../data/types";
-import { supabase } from "../lib/supabase";
-import { useAuthStore } from "./useAuthStore";
+import { getAccessToken } from "../lib/neon";
 
 interface NotesState {
   notes: NoteBlock[];
@@ -74,11 +73,7 @@ export const useNotesStore = create<NotesState>()(
         });
 
         try {
-          const currentSession = supabase
-            ? (await supabase.auth.getSession()).data.session
-            : null;
-          const accessToken =
-            currentSession?.access_token ?? useAuthStore.getState().session?.access_token;
+          const accessToken = await getAccessToken();
           const res = await fetch("/api/summarize", {
             method: "POST",
             headers: {

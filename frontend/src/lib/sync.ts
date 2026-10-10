@@ -1,4 +1,4 @@
-// Syncs every local store to Supabase while signed in. Started by
+// Syncs every local store to Neon (Data API) while signed in. Started by
 // useAuthStore when status becomes "signedIn", stopped on sign-out.
 //
 // Conflict strategy: rather than comparing per-record updatedAt timestamps
@@ -24,7 +24,7 @@
 // side. Settings has no natural id and no such guarantee, so it gets the
 // simpler rule the plan calls for explicitly: server wins if a row exists,
 // otherwise the local settings get uploaded.
-import { supabase } from "./supabase";
+import { db } from "./neon";
 import { useEpisodesStore } from "../store/useEpisodesStore";
 import { useNotesStore } from "../store/useNotesStore";
 import { useFoldersStore } from "../store/useFoldersStore";
@@ -265,7 +265,7 @@ function deleteTombstone(table: "episodes" | "notes" | "folders", id: string, id
 }
 
 async function pushEpisodes() {
-  if (!supabase) return;
+  if (!db) return;
   const keys = Array.from(dirty.episodes);
   if (keys.length === 0) return;
   const byId = new Map(useEpisodesStore.getState().episodes.map((e) => [e.id, e]));
@@ -277,7 +277,7 @@ async function pushEpisodes() {
     }
     return deleteTombstone("episodes", id, "id");
   });
-  const { error } = await supabase.from("episodes").upsert(rows, { onConflict: "user_id,id" });
+  const { error } = await db.from("episodes").upsert(rows, { onConflict: "user_id,id" });
   if (error) throw error;
   for (const id of keys) {
     clearDirty("episodes", id);
@@ -286,7 +286,7 @@ async function pushEpisodes() {
 }
 
 async function pushNotes() {
-  if (!supabase) return;
+  if (!db) return;
   const keys = Array.from(dirty.notes);
   if (keys.length === 0) return;
   const byId = new Map(useNotesStore.getState().notes.map((n) => [n.id, n]));
@@ -298,7 +298,7 @@ async function pushNotes() {
     }
     return deleteTombstone("notes", id, "id");
   });
-  const { error } = await supabase.from("notes").upsert(rows, { onConflict: "user_id,id" });
+  const { error } = await db.from("notes").upsert(rows, { onConflict: "user_id,id" });
   if (error) throw error;
   for (const id of keys) {
     clearDirty("notes", id);
@@ -307,7 +307,7 @@ async function pushNotes() {
 }
 
 async function pushFolders() {
-  if (!supabase) return;
+  if (!db) return;
   const keys = Array.from(dirty.folders);
   if (keys.length === 0) return;
   const byId = new Map(useFoldersStore.getState().folders.map((f) => [f.id, f]));
@@ -319,7 +319,7 @@ async function pushFolders() {
     }
     return deleteTombstone("folders", id, "id");
   });
-  const { error } = await supabase.from("folders").upsert(rows, { onConflict: "user_id,id" });
+  const { error } = await db.from("folders").upsert(rows, { onConflict: "user_id,id" });
   if (error) throw error;
   for (const id of keys) {
     clearDirty("folders", id);
@@ -328,8 +328,8 @@ async function pushFolders() {
 }
 
 async function pullEpisodes(isFirstMerge: boolean) {
-  if (!supabase) return;
-  const { data, error } = await supabase.from("episodes").select("*");
+  if (!db) return;
+  const { data, error } = await db.from("episodes").select("*");
   if (error) throw error;
   applyingRemote = true;
   try {
@@ -357,8 +357,8 @@ async function pullEpisodes(isFirstMerge: boolean) {
 }
 
 async function pullNotes(isFirstMerge: boolean) {
-  if (!supabase) return;
-  const { data, error } = await supabase.from("notes").select("*");
+  if (!db) return;
+  const { data, error } = await db.from("notes").select("*");
   if (error) throw error;
   applyingRemote = true;
   try {
@@ -386,8 +386,8 @@ async function pullNotes(isFirstMerge: boolean) {
 }
 
 async function pullFolders(isFirstMerge: boolean) {
-  if (!supabase) return;
-  const { data, error } = await supabase.from("folders").select("*");
+  if (!db) return;
+  const { data, error } = await db.from("folders").select("*");
   if (error) throw error;
   applyingRemote = true;
   try {
@@ -417,7 +417,7 @@ async function pullFolders(isFirstMerge: boolean) {
 // ---- freeform_notes / activity / progress: Record<key, scalar> ---------
 
 async function pushFreeformNotes() {
-  if (!supabase) return;
+  if (!db) return;
   const keys = Array.from(dirty.freeform_notes);
   if (keys.length === 0) return;
   const map = useNotesStore.getState().freeformNotes;
@@ -426,14 +426,14 @@ async function pushFreeformNotes() {
       ? { episode_id: episodeId, text: map[episodeId], deleted_at: null }
       : { episode_id: episodeId, text: "", deleted_at: new Date().toISOString() },
   );
-  const { error } = await supabase.from("freeform_notes").upsert(rows, { onConflict: "user_id,episode_id" });
+  const { error } = await db.from("freeform_notes").upsert(rows, { onConflict: "user_id,episode_id" });
   if (error) throw error;
   for (const id of keys) clearDirty("freeform_notes", id);
 }
 
 async function pullFreeformNotes(isFirstMerge: boolean) {
-  if (!supabase) return;
-  const { data, error } = await supabase.from("freeform_notes").select("*");
+  if (!db) return;
+  const { data, error } = await db.from("freeform_notes").select("*");
   if (error) throw error;
   applyingRemote = true;
   try {
@@ -460,7 +460,7 @@ async function pullFreeformNotes(isFirstMerge: boolean) {
 }
 
 async function pushActivity() {
-  if (!supabase) return;
+  if (!db) return;
   const keys = Array.from(dirty.activity);
   if (keys.length === 0) return;
   const map = useActivityStore.getState().minutesByDate;
@@ -469,14 +469,14 @@ async function pushActivity() {
       ? { date, minutes: map[date], deleted_at: null }
       : { date, minutes: 0, deleted_at: new Date().toISOString() },
   );
-  const { error } = await supabase.from("activity").upsert(rows, { onConflict: "user_id,date" });
+  const { error } = await db.from("activity").upsert(rows, { onConflict: "user_id,date" });
   if (error) throw error;
   for (const key of keys) clearDirty("activity", key);
 }
 
 async function pullActivity(isFirstMerge: boolean) {
-  if (!supabase) return;
-  const { data, error } = await supabase.from("activity").select("*");
+  if (!db) return;
+  const { data, error } = await db.from("activity").select("*");
   if (error) throw error;
   applyingRemote = true;
   try {
@@ -501,7 +501,7 @@ async function pullActivity(isFirstMerge: boolean) {
 }
 
 async function pushProgress() {
-  if (!supabase) return;
+  if (!db) return;
   const keys = Array.from(dirty.progress);
   if (keys.length === 0) return;
   const map = useProgressStore.getState().progressByEpisode;
@@ -510,14 +510,14 @@ async function pushProgress() {
       ? { episode_id: episodeId, seconds: map[episodeId], deleted_at: null }
       : { episode_id: episodeId, seconds: 0, deleted_at: new Date().toISOString() },
   );
-  const { error } = await supabase.from("progress").upsert(rows, { onConflict: "user_id,episode_id" });
+  const { error } = await db.from("progress").upsert(rows, { onConflict: "user_id,episode_id" });
   if (error) throw error;
   for (const id of keys) clearDirty("progress", id);
 }
 
 async function pullProgress(isFirstMerge: boolean) {
-  if (!supabase) return;
-  const { data, error } = await supabase.from("progress").select("*");
+  if (!db) return;
+  const { data, error } = await db.from("progress").select("*");
   if (error) throw error;
   applyingRemote = true;
   try {
@@ -544,7 +544,7 @@ async function pullProgress(isFirstMerge: boolean) {
 }
 
 async function pushTranscripts() {
-  if (!supabase) return;
+  if (!db) return;
   const keys = Array.from(dirty.transcripts);
   if (keys.length === 0) return;
   const map = useTranscriptStore.getState().transcripts;
@@ -553,14 +553,14 @@ async function pushTranscripts() {
       ? { episode_id: episodeId, segments: map[episodeId], deleted_at: null }
       : { episode_id: episodeId, segments: [], deleted_at: new Date().toISOString() },
   );
-  const { error } = await supabase.from("transcripts").upsert(rows, { onConflict: "user_id,episode_id" });
+  const { error } = await db.from("transcripts").upsert(rows, { onConflict: "user_id,episode_id" });
   if (error) throw error;
   for (const id of keys) clearDirty("transcripts", id);
 }
 
 async function pullTranscripts(isFirstMerge: boolean) {
-  if (!supabase) return;
-  const { data, error } = await supabase.from("transcripts").select("*");
+  if (!db) return;
+  const { data, error } = await db.from("transcripts").select("*");
   if (error) throw error;
   applyingRemote = true;
   try {
@@ -589,7 +589,7 @@ async function pullTranscripts(isFirstMerge: boolean) {
 // ---- ai_summaries: two local maps (bullets + error) share one table ----
 
 async function pushAiSummaries() {
-  if (!supabase) return;
+  if (!db) return;
   const keys = Array.from(dirty.ai_summaries);
   if (keys.length === 0) return;
   const { aiSummaries, aiSummaryErrors } = useNotesStore.getState();
@@ -601,14 +601,14 @@ async function pushAiSummaries() {
     }
     return { episode_id: episodeId, bullets: bullets ?? [], error: errorMsg ?? null, deleted_at: null };
   });
-  const { error } = await supabase.from("ai_summaries").upsert(rows, { onConflict: "user_id,episode_id" });
+  const { error } = await db.from("ai_summaries").upsert(rows, { onConflict: "user_id,episode_id" });
   if (error) throw error;
   for (const id of keys) clearDirty("ai_summaries", id);
 }
 
 async function pullAiSummaries(isFirstMerge: boolean) {
-  if (!supabase) return;
-  const { data, error } = await supabase.from("ai_summaries").select("*");
+  if (!db) return;
+  const { data, error } = await db.from("ai_summaries").select("*");
   if (error) throw error;
   applyingRemote = true;
   try {
@@ -647,10 +647,10 @@ async function pullAiSummaries(isFirstMerge: boolean) {
 // ---- settings: singleton, server wins if present ------------------------
 
 async function pushSettings() {
-  if (!supabase) return;
+  if (!db) return;
   if (!dirty.settings.has(SETTINGS_KEY)) return;
   const { dailyGoalTarget, notificationsEnabled, exportFormat } = useSettingsStore.getState();
-  const { error } = await supabase
+  const { error } = await db
     .from("settings")
     .upsert(
       { daily_goal_target: dailyGoalTarget, notifications_enabled: notificationsEnabled, export_format: exportFormat },
@@ -661,8 +661,8 @@ async function pushSettings() {
 }
 
 async function pullSettings() {
-  if (!supabase) return;
-  const { data, error } = await supabase.from("settings").select("*").maybeSingle();
+  if (!db) return;
+  const { data, error } = await db.from("settings").select("*").maybeSingle();
   if (error) throw error;
   if (dirty.settings.has(SETTINGS_KEY)) return;
   applyingRemote = true;
@@ -819,7 +819,7 @@ function attachSubscriptions() {
 }
 
 export async function startSync(userId: string) {
-  if (started || !supabase) return;
+  if (started || !db) return;
   started = true;
   dirty = loadDirty();
   attachSubscriptions();

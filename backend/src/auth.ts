@@ -1,22 +1,22 @@
-// Verifies a Supabase session JWT locally — no network call per request, no
-// supabase-js dependency here. Framework-agnostic like the rest of backend/:
-// the caller supplies the Authorization header value and an env object.
+// Verifies a Neon Auth (managed Better Auth) session JWT locally against the
+// project's JWKS — no network call per request once the keys are cached, no
+// auth SDK here. Framework-agnostic like the rest of backend/: the caller
+// supplies the Authorization header value and an env object.
 import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from "jose";
 
 export interface AuthEnv {
-  // Set exactly one, matching the Supabase project's JWT signing algorithm
-  // (Settings -> API -> JWT): the legacy shared secret for HS256, or the
-  // project URL (its JWKS is derived from it) for ES256.
-  SUPABASE_JWT_SECRET?: string;
-  SUPABASE_URL?: string;
+  // Neon Auth base URL for the branch, e.g.
+  // https://ep-….neonauth.<region>.aws.neon.tech/neondb/auth
+  // Its JWKS lives at <url>/.well-known/jwks.json.
+  NEON_AUTH_URL?: string;
 }
 
 let cachedJwks: { url: string; keySet: JWTVerifyGetKey } | null = null;
 
-function getJwks(supabaseUrl: string): JWTVerifyGetKey {
-  if (cachedJwks?.url === supabaseUrl) return cachedJwks.keySet;
-  const keySet = createRemoteJWKSet(new URL("/auth/v1/.well-known/jwks.json", supabaseUrl));
-  cachedJwks = { url: supabaseUrl, keySet };
+function getJwks(authUrl: string): JWTVerifyGetKey {
+  if (cachedJwks?.url === authUrl) return cachedJwks.keySet;
+  const keySet = createRemoteJWKSet(new URL(`${authUrl.replace(/\/$/, "")}/.well-known/jwks.json`));
+  cachedJwks = { url: authUrl, keySet };
   return keySet;
 }
 
@@ -29,23 +29,23 @@ export async function verifyUser(
   env: AuthEnv,
 ): Promise<string | null> {
   const token = authorizationHeader?.match(/^Bearer\s+(.+)$/i)?.[1];
-  if (!token) return null;
+  if (!token || !env.NEON_AUTH_URL) return null;
 
+  const authUrl = env.NEON_AUTH_URL.replace(/\/$/, "");
   try {
-    let payload;
-    if (env.SUPABASE_URL) {
-      try {
-        ({ payload } = await jwtVerify(token, getJwks(env.SUPABASE_URL)));
-      } catch (jwksError) {
-        if (!env.SUPABASE_JWT_SECRET) throw jwksError;
-        ({ payload } = await jwtVerify(token, new TextEncoder().encode(env.SUPABASE_JWT_SECRET)));
-      }
-    } else if (env.SUPABASE_JWT_SECRET) {
-      ({ payload } = await jwtVerify(token, new TextEncoder().encode(env.SUPABASE_JWT_SECRET)));
-    } else {
-      return null;
-    }
-    return typeof payload.sub === "string" ? payload.sub : null;
+    const { payload } = await jwtVerify(token, getJwks(authUrl), {
+      // Neon Auth signs with Ed25519; pinning the algorithm rules out
+      // key-confusion tricks (e.g. HS256 signed with the public key).
+      algorithms: ["EdDSA"],
+      // Observed on real tokens: iss is the full auth URL, aud its origin.
+      issuer: authUrl,
+      audience: new URL(authUrl).origin,
+    });
+    // Neon Auth also hands out *anonymous* JWTs (GET /token/anonymous, no
+    // account needed) signed by the same key and carrying a `sub`. Only a
+    // signed-in user's token may reach paid endpoints.
+    if (payload.role !== "authenticated") return null;
+    return typeof payload.sub === "string" && payload.sub ? payload.sub : null;
   } catch {
     return null;
   }
