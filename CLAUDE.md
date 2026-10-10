@@ -9,8 +9,8 @@ PodMark is a podcast tracker and learning journal PWA (search episodes, play, ta
 Run from the repo root (npm workspaces: `frontend`, `backend`).
 
 ```bash
-npm run dev                  # Vite on :5173 (does NOT serve /api/*)
-vercel dev --listen 3001     # app + /api/* together, needed to exercise AI/YouTube endpoints
+npm run dev                  # Vite on :5173; /api/* proxied to production podmark-ai.vercel.app (API_PROXY_TARGET="" disables)
+vercel dev --listen 3001     # app + local /api/* functions, to test backend changes locally
 npm run build                # tsc -b + vite build -> frontend/dist
 npm run typecheck            # frontend, backend, and api/ (tsconfig.api.json)
 npm run lint                 # oxlint
@@ -45,5 +45,5 @@ Routing is `HashRouter` (no SSR), so auth redirects must not rely on the URL has
 ## Testing notes
 
 - Playwright runs two dev servers: `:5173` with Neon env vars forced empty (hermetic, signed-out; `chromium` + `mobile-chrome` projects) and `:5174` pointed at fake `*.neon.test` hosts for `e2e/neon-*.spec.ts` (`accounts` project), where every Neon request is intercepted with `page.route()`. Never depend on a real Neon project.
-- `/api/*` is not served by `npm run dev`, so e2e specs that touch API features mock those routes.
+- Playwright sets `API_PROXY_TARGET=""`, so `/api/*` is never proxied to production in tests; specs that touch API features mock those routes.
 - The API tests (`tests/api.test.mjs`, `tests/auth.test.mjs`) never call paid providers or real Neon: provider keys are stripped and JWTs come from a local fixture (`tests/neonAuthFixture.mjs`).
