@@ -22,7 +22,7 @@ Use lowercase kebab-case and a concise, descriptive topic. Optionally include an
 ## Standard change workflow
 
 1. Update local `master` from `origin/master`; branch from that exact trunk, not another feature branch.
-2. Implement one narrowly scoped change. Keep incomplete or risky functionality disabled behind a safe-default-off feature flag. For schema changes, use backward-compatible migrations and separate expand/contract steps when necessary.
+2. Implement one narrowly scoped change (local setup and checks: README → **Local development**). Keep incomplete or risky functionality disabled behind a safe-default-off feature flag. For schema changes, use backward-compatible migrations and separate expand/contract steps when necessary.
 3. Push the branch and open a PR **targeting `master`**. A draft PR is fine for early review but is not mergeable until ready.
 4. Run the relevant checks (`npm run typecheck`, `npm run lint`, `npm run build`, and applicable automated tests). CI must pass. Review changes, security implications, database compatibility, and deployment impact.
 5. Get the repository owner's approval. Prefer **squash merge** to keep `master` linear and easy to follow. Never bypass failing required checks or push directly to `master`.
