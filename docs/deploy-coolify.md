@@ -60,7 +60,7 @@ Go to https://coolify.habiibullahm.my.id -> Projects -> production -> + New -> *
 - Server: `localhost`
 - Ports Exposes: **3000** (the container must receive traffic on this port)
 - Domain: `https://podmark.habiibullahm.my.id`
-- Health check: `/healthz`
+- Health check: `/healthz` on port `3000` (Coolify's check runs `curl` inside the container; the image includes it)
 - Persistent storage: none required for the Node frontend/API container
 
 Leave container ports private; expose the public site through the Coolify Traefik proxy.

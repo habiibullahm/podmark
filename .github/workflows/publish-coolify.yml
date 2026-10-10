@@ -115,6 +115,8 @@ jobs:
       - name: Container checks (non-root, graceful stop, size)
         run: |
           test "$(docker exec podmark id -un)" = node
+          # The same command Coolify's health check runs inside the container.
+          docker exec podmark curl -fsS http://127.0.0.1:3000/healthz
           docker stats --no-stream podmark
           start=$(date +%s); docker stop -t 15 podmark; elapsed=$(( $(date +%s) - start ))
           echo "stopped in ${elapsed}s"; test "$elapsed" -lt 10
