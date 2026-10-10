@@ -2,7 +2,7 @@
 
 A podcast tracker and learning journal: find real episodes, listen, capture timestamped notes and highlights, get an AI summary, and export to Obsidian or Notion.
 
-Live: https://podbrain-five.vercel.app · Product requirements: [docs/PRD.md](docs/PRD.md)
+Live: https://podmark-ai.vercel.app · Product requirements: [docs/PRD.md](docs/PRD.md)
 
 ## Layout
 
@@ -24,8 +24,8 @@ Run everything from the repo root.
 
 ```bash
 npm install                 # installs both workspaces
-npm run dev                 # Vite on :5173 — does NOT serve /api/*
-vercel dev --listen 3001    # app + /api/* together; use this to exercise AI or YouTube
+npm run dev                 # Vite on :5173; /api/* is proxied to production (API_PROXY_TARGET to change, "" to disable)
+vercel dev --listen 3001    # app + local /api/* functions (needs a linked Vercel project and local keys)
 npm run build               # -> frontend/dist
 npm run typecheck           # frontend, backend, and api
 npm run test:e2e            # Playwright, desktop + mobile Chrome (add --workers=2 on a busy machine)
@@ -59,7 +59,7 @@ Put logic in `backend/src/`, not in `api/`. A backend function takes a plain inp
 Hosting is Vercel, through its Git integration — there is no deploy script:
 
 - **Pull requests** get a preview deployment (behind Vercel Authentication).
-- **Merges to `master`** deploy production at `https://podmark.habiibullahm.my.id` (also `podbrain-five.vercel.app`).
+- **Merges to `master`** deploy production at `https://podmark-ai.vercel.app`.
 - **Rollback:** Vercel dashboard → Deployments → promote the previous production deployment (Instant Rollback).
 
 GitHub Actions (`.github/workflows/ci.yml`) runs typecheck, lint, build, API tests and Playwright on every PR and on `master`; on `master` it also applies Neon migrations and checks RLS.

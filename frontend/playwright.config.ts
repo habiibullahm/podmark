@@ -39,7 +39,8 @@ export default defineConfig({
       // spec valid regardless of accounts. Force that here so a developer's own
       // frontend/.env.local can't silently make this run exercise a different,
       // non-hermetic code path.
-      env: { VITE_NEON_AUTH_URL: "", VITE_NEON_DATA_API_URL: "" },
+      // API_PROXY_TARGET="" keeps /api/* off production; specs mock it.
+      env: { VITE_NEON_AUTH_URL: "", VITE_NEON_DATA_API_URL: "", API_PROXY_TARGET: "" },
     },
     {
       // Same app with accounts switched on, pointed at the fake Neon hosts.
@@ -47,7 +48,7 @@ export default defineConfig({
       url: "http://localhost:5174",
       reuseExistingServer: !process.env.CI,
       timeout: 30_000,
-      env: { VITE_NEON_AUTH_URL: NEON_TEST_AUTH_URL, VITE_NEON_DATA_API_URL: NEON_TEST_DATA_API_URL },
+      env: { VITE_NEON_AUTH_URL: NEON_TEST_AUTH_URL, VITE_NEON_DATA_API_URL: NEON_TEST_DATA_API_URL, API_PROXY_TARGET: "" },
     },
   ],
 });
