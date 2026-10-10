@@ -1,0 +1,78 @@
+name: CI
+
+# Deployments are handled by Vercel's Git integration: every PR gets a preview
+# and every push to master deploys production. This workflow only tests, and
+# on master applies Neon migrations.
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+        env:
+          VITE_NEON_AUTH_URL: ${{ vars.VITE_NEON_AUTH_URL }}
+          VITE_NEON_DATA_API_URL: ${{ vars.VITE_NEON_DATA_API_URL }}
+      - name: API tests (Vercel handlers + Neon JWT verification)
+        run: npm run test:api
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - name: E2E tests (desktop, mobile, accounts)
+        run: npm run test:e2e -- --workers=2
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: frontend/playwright-report
+          retention-days: 7
+
+  # Applies backend/neon/migrations to the Neon production branch, then runs the
+  # self-cleaning RLS check. Vercel deploys the same commit in parallel, so
+  # migrations must stay backward compatible (add, don't rename/drop).
+  migrate:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: neon-migrate
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Apply migrations and verify RLS
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "NEON_DATABASE_URL secret not set; skipping migrations." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          npm run db:migrate
+          npm run db:verify
+          echo "Neon migrations applied; RLS check passed." >> "$GITHUB_STEP_SUMMARY"

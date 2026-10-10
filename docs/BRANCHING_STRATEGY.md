@@ -53,10 +53,10 @@ To incorporate new trunk changes, fetch and rebase your **own** short-lived bran
 
 ## Releases, previews, and hotfixes
 
-- **PR branches:** may run tests and optional previews, but **must never publish the production GHCR image or trigger Coolify production**.
-- **`master` pushes/merges:** may publish the tested Docker image to GHCR and trigger Coolify. Both the immutable commit-SHA tag and `latest` may be published; retain the SHA for traceable rollback.
+- **PR branches:** run CI and get a Vercel **preview** deployment; they must never deploy production or run production migrations.
+- **`master` pushes/merges:** Vercel deploys production automatically; CI applies Neon migrations (backward-compatible only).
 - **Manual workflows:** must not publish/deploy production when invoked from a non-`master` ref.
 - **Versioning:** use optional release tags on commits already on `master`; tags are not separate release branches.
-- **Hotfixes:** branch `hotfix/<topic>` from latest `master`, run focused tests, open an expedited PR to `master`, obtain approval, merge and redeploy. If an immediate restore is needed, Coolify can roll back to a previously published immutable SHA image while the fix is prepared.
+- **Hotfixes:** branch `hotfix/<topic>` from latest `master`, run focused tests, open an expedited PR to `master`, obtain approval, merge and redeploy. If an immediate restore is needed, use Vercel **Instant Rollback** (promote the previous production deployment) while the fix is prepared.
 
-**One-line rule:** `master` → short-lived branch → focused PR to `master` → green CI + approval → squash merge → GHCR/Coolify → delete branch.
+**One-line rule:** `master` → short-lived branch → focused PR to `master` → green CI + approval → squash merge → Vercel production → delete branch.

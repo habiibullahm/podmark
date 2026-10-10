@@ -19,8 +19,7 @@ export async function startNeonAuthFixture(authUrl = "http://127.0.0.1:0/neondb/
     }
     res.writeHead(404).end();
   });
-  // 0.0.0.0 so a container under test can reach it via host.docker.internal.
-  await new Promise((resolve) => server.listen(Number(requested.port), "0.0.0.0", resolve));
+  await new Promise((resolve) => server.listen(Number(requested.port), "127.0.0.1", resolve));
   const port = server.address().port;
   const url = new URL(authUrl);
   url.port = String(port);

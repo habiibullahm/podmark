@@ -64,7 +64,7 @@ PodMark uses **trunk-based development**. `master` is the only long-lived integr
 - **Target `master` directly.** Open small, focused PRs against `master`; avoid stacked PRs. If stacking is temporarily necessary, retarget the dependent PR to `master` as soon as its prerequisite is merged.
 - **Integrate safely.** Keep `master` buildable and the main user journeys working. Hide incomplete functionality behind feature flags or keep it inactive; do not merge broken intermediate states.
 - **Require a green PR.** Run relevant typecheck, lint, tests, and build checks. Address failing CI before merge. Do not push directly to `master`; get the repository owner's approval before merging.
-- **Deploy from trunk only.** Production image publishing and Coolify deployment may run only after a push/merge to `master`, never from a feature-branch PR or manual run on another ref.
+- **Deploy from trunk only.** Vercel deploys production only from `master`; PRs get preview deployments. Neon migrations run in CI only after a push/merge to `master`.
 - **Clean up promptly.** Prefer squash merge for focused PRs, delete merged feature branches, and start the next change from current `master`. Keep database changes backward-compatible when possible so frequent merges remain safe.
 
 ## Commit & Pull Requests
