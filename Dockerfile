@@ -24,6 +24,13 @@ WORKDIR /app
 # right-most X-Forwarded-For hop is the real client (used for rate limits).
 ENV NODE_ENV=production PORT=3000 TRUST_PROXY=1
 
+# curl for health checks: Coolify's own health check runs curl/wget inside the
+# container, and the slim base image ships neither — without it Coolify marks
+# the container unhealthy and its proxy never routes to it.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends curl \
+  && rm -rf /var/lib/apt/lists/*
+
 COPY package.json package-lock.json ./
 COPY frontend/package.json ./frontend/package.json
 COPY backend/package.json ./backend/package.json
@@ -36,6 +43,7 @@ COPY --from=build /app/server ./server
 
 USER node
 EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:3000/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+# Shell form so it follows PORT if the platform overrides it.
+HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -fsS "http://127.0.0.1:${PORT:-3000}/healthz" >/dev/null || exit 1
 CMD ["node", "server/index.mjs"]
