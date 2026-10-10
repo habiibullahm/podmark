@@ -4,7 +4,7 @@ import fs from "node:fs";
 test.describe("Free-text tags", () => {
   test("adds a note with a custom free-text tag not on the episode", async ({ page }) => {
     await page.goto("/#/episode/ep-1");
-    await page.getByRole("button", { name: "+ Add Timestamp Note" }).click();
+    await page.getByRole("button", { name: "Add Timestamp Note" }).click();
     await page.getByPlaceholder("What's worth remembering here?").fill("A note with a custom tag");
 
     await page.getByRole("textbox", { name: "Add a tag" }).fill("deep-work");
@@ -48,10 +48,9 @@ test.describe("Complete export", () => {
     await page.getByRole("button", { name: "AI Summarize Episode" }).click();
     await expect(page.getByText("A summarized bullet point.")).toBeVisible({ timeout: 3000 });
 
-    await page.getByRole("button", { name: "⋯" }).click();
     const [download] = await Promise.all([
       page.waitForEvent("download"),
-      page.getByText("Export episode ↗").click(),
+      page.getByRole("button", { name: "Export episode as Markdown" }).click(),
     ]);
 
     const filePath = await download.path();
@@ -69,7 +68,7 @@ test.describe("Complete export", () => {
     await page.goto("/#/library");
     const [download] = await Promise.all([
       page.waitForEvent("download"),
-      page.getByRole("button", { name: "Export All ↗" }).click(),
+      page.getByRole("button", { name: "Export all" }).click(),
     ]);
 
     const filePath = await download.path();
@@ -82,7 +81,7 @@ test.describe("Add to folder from the Library card", () => {
   test("adds an episode to a folder from its card menu without opening the episode", async ({ page }) => {
     await page.goto("/#/library");
     await page.getByRole("button", { name: /Add ".*" to folder/ }).first().click();
-    await page.getByText("📁 Investing Basics").click();
+    await page.getByRole("button", { name: "Investing Basics" }).click();
 
     await page.getByRole("button", { name: "Folders", exact: true }).click();
     await page.getByText("Investing Basics").click();

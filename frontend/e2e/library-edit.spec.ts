@@ -11,7 +11,7 @@ test.describe("Library edit and remove", () => {
 
     await page.goto("/#/episode/ep-1");
 
-    await page.getByRole("button", { name: "⋯" }).click();
+    await page.getByRole("button", { name: "More options" }).click();
     await page.getByText("Remove from Library").click();
     await expect(page.getByText(/Remove ".*" and its 2 notes/)).toBeVisible();
     await page.getByRole("button", { name: "Remove", exact: true }).click();
@@ -46,7 +46,7 @@ test.describe("Library edit and remove", () => {
   test("cancelling the remove confirmation keeps the episode", async ({ page }) => {
     await page.goto("/#/episode/ep-1");
 
-    await page.getByRole("button", { name: "⋯" }).click();
+    await page.getByRole("button", { name: "More options" }).click();
     await page.getByText("Remove from Library").click();
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
 

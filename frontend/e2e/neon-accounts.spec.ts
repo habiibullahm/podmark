@@ -343,3 +343,51 @@ test.describe("Account data isolation", () => {
     await expect(page.getByText("Daily limit reached (5 AI requests per day). Try again tomorrow.")).toBeVisible();
   });
 });
+
+test.describe("YouTube transcripts with accounts", () => {
+  test("guests get a sign-in CTA instead of a request; signed-in users send the JWT", async ({ page }) => {
+    const neon = await fakeNeon(page);
+    let transcriptCalls = 0;
+    let transcriptAuth: string | undefined;
+    await page.route("**/api/youtube", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ videoId: "dQw4w9WgXcQ", title: "E2E Mock YouTube Talk", channel: "E2E Mock Channel" }),
+      }),
+    );
+    await page.route("**/api/youtube-transcript", (route) => {
+      transcriptCalls += 1;
+      transcriptAuth = route.request().headers()["authorization"];
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ videoId: "dQw4w9WgXcQ", segments: [{ start: 0, end: 2, text: "Hello from the transcript." }] }),
+      });
+    });
+
+    await page.goto("/#/discover");
+    await page.getByPlaceholder("Search podcasts, or paste a YouTube link...").fill("https://youtu.be/dQw4w9WgXcQ");
+    await page.getByRole("button", { name: "Look up", exact: true }).click();
+    await page.getByRole("button", { name: "Add to Library" }).click();
+
+    await page.goto("/#/episode/youtube-dQw4w9WgXcQ");
+    await expect(page.getByRole("button", { name: "Sign in to get transcript" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Get Transcript", exact: true })).toHaveCount(0);
+    expect(transcriptCalls).toBe(0);
+
+    await page.getByRole("button", { name: "Sign in to get transcript" }).click();
+    await expect(page).toHaveURL(/#\/profile/);
+    await page.getByPlaceholder("you@example.com").fill(USER.email);
+    await page.getByPlaceholder("Password").fill("correct horse battery staple");
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page.getByText(`Signed in as ${USER.email}`)).toBeVisible();
+
+    await page.goto("/#/episode/youtube-dQw4w9WgXcQ");
+    await expect(page.getByRole("button", { name: "Sign in to get transcript" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Get Transcript", exact: true }).click();
+    await expect(page.getByText("Hello from the transcript.")).toBeVisible();
+    expect(transcriptCalls).toBe(1);
+    expect(transcriptAuth).toBe(`Bearer ${neon.jwt}`);
+  });
+});

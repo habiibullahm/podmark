@@ -15,7 +15,7 @@ test.describe("Library", () => {
     await expect(page.getByText("Building a Second Brain: The Case for Structured Notes")).toBeVisible();
     await expect(page.getByText("Reading Financial Statements Like an Investor")).toBeVisible();
     await expect(page.getByText("The Psychology of Compounding Habits")).toBeVisible();
-    await expect(page.getByText("✓ Completed").first()).toBeVisible();
+    await expect(page.getByText("Completed", { exact: true }).first()).toBeVisible();
   });
 
   test("switches to Takeaways and shows saved notes", async ({ page }) => {
@@ -91,7 +91,7 @@ test.describe("Library", () => {
   test("Export All downloads a Markdown file of notes", async ({ page }) => {
     const [download] = await Promise.all([
       page.waitForEvent("download"),
-      page.getByRole("button", { name: "Export All ↗" }).click(),
+      page.getByRole("button", { name: "Export all" }).click(),
     ]);
 
     expect(download.suggestedFilename()).toMatch(/^podmark-export-\d{4}-\d{2}-\d{2}\.md$/);

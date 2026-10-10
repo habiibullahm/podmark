@@ -40,7 +40,9 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, build, `test:api`, and `te
 
 Routing is `HashRouter` (no SSR), so auth redirects must not rely on the URL hash.
 
-**Audio playback** is global via `frontend/src/context/PlayerContext.tsx` (compact player + full-screen modal rendered in `App.tsx` outside the routes).
+**Audio playback** is global via `frontend/src/context/PlayerContext.tsx`; the controls live in `components/PlayerControls.tsx` and are shown by one surface at a time.
+
+**UI system.** `components/AppShell.tsx` is the responsive frame: desktop (lg+) = `Sidebar` · content · `UtilityPanel` (player card, daily goal, streak; hidden on `/episode/*`, which has its own player); tablet = icon sidebar + docked `CompactAudioPlayer`; phone = mini player + `BottomTabBar`. Breakpoint-specific surfaces are *rendered* conditionally via `useIsDesktop()` (`lib/useMediaQuery.ts`), never duplicated and CSS-hidden — Playwright's strict locators and screen readers both see hidden copies. Colors, shadows and radii are tokens in `index.css` (light + dark); shared class recipes (cards, buttons, menus) are in `lib/ui.ts`. Icons are `lucide-react`; nav items are defined once in `lib/navigation.ts`. Discover is its own route (`/discover`), not a Library tab.
 
 ## Testing notes
 

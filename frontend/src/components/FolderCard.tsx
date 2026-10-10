@@ -1,30 +1,26 @@
+import { Folder as FolderIcon } from "lucide-react";
 import type { Folder } from "../data/types";
+import { CARD_INTERACTIVE } from "../lib/ui";
 
-export function FolderCard({
-  folder,
-  onClick,
-}: {
-  folder: Folder;
-  onClick?: () => void;
-}) {
+export function FolderCard({ folder, onClick }: { folder: Folder; onClick?: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-3 rounded-2xl border border-border bg-bg-surface p-3.5 text-left"
+      className={`${CARD_INTERACTIVE} flex w-full items-center gap-3.5 p-4 text-left`}
     >
-      <div
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg"
-        style={{ backgroundColor: `${folder.color}26` }}
+      <span
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
+        style={{ backgroundColor: `${folder.color}22`, color: folder.color }}
       >
-        📁
-      </div>
-      <div className="min-w-0">
-        <p className="truncate text-[14px] font-medium text-text-primary">{folder.name}</p>
-        <p className="text-xs text-text-secondary">
+        <FolderIcon size={20} aria-hidden="true" />
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-[15px] font-bold text-text-primary">{folder.name}</span>
+        <span className="block text-xs text-text-secondary">
           {folder.episodeIds.length} item{folder.episodeIds.length === 1 ? "" : "s"}
-        </p>
-      </div>
+        </span>
+      </span>
     </button>
   );
 }

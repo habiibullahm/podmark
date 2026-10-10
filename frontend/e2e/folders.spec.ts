@@ -10,7 +10,7 @@ test.describe("Custom Folders", () => {
     await expect(page.getByText("Building a Second Brain: The Case for Structured Notes")).toBeVisible();
     await expect(page.getByText("How Transformers Actually Work, Explained Simply")).toBeVisible();
 
-    await page.getByText("← All Folders").click();
+    await page.getByRole("button", { name: "All Folders" }).click();
     await expect(page.getByText("Q3 Learning Sprint")).toBeVisible();
     await expect(page.getByText("Investing Basics")).toBeVisible();
   });
@@ -19,7 +19,7 @@ test.describe("Custom Folders", () => {
     await page.goto("/#/library");
     await page.getByRole("button", { name: "Folders", exact: true }).click();
 
-    await page.getByRole("button", { name: "+ New Folder" }).click();
+    await page.getByRole("button", { name: "New Folder" }).click();
     await page.getByPlaceholder("Folder name...").fill("Deep Focus");
     await page.getByRole("button", { name: "Create", exact: true }).click();
 
@@ -27,7 +27,7 @@ test.describe("Custom Folders", () => {
     await expect(page.getByText("0 items")).toBeVisible();
 
     await page.goto("/#/episode/ep-4");
-    await page.getByRole("button", { name: "⋯" }).click();
+    await page.getByRole("button", { name: "More options" }).click();
     await page.getByText("Deep Focus").click();
 
     await page.goto("/#/library");
@@ -39,7 +39,7 @@ test.describe("Custom Folders", () => {
 
   test("the add-to-folder menu closes when clicking elsewhere on the page", async ({ page }) => {
     await page.goto("/#/episode/ep-1");
-    await page.getByRole("button", { name: "⋯" }).click();
+    await page.getByRole("button", { name: "More options" }).click();
 
     await expect(page.getByText("Add to folder")).toBeVisible();
 

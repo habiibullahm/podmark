@@ -1,85 +1,135 @@
 @import "tailwindcss";
+@import "@fontsource-variable/plus-jakarta-sans";
 
 /*
  * Primitive palette — raw color values, no semantic meaning.
  * Nothing outside this block should reference a hex literal.
  */
 :root {
-  --palette-charcoal-950: #121212;
-  --palette-graphite-800: #1e1e1e;
-  --palette-graphite-700: #2c2c2c;
-  --palette-graphite-600: #3a3a3a;
-  --palette-neutral-500: #737373;
-  --palette-neutral-400: #a3a3a3;
-  --palette-neutral-100: #f5f5f5;
-  --palette-indigo-500: #6366f1;
-  --palette-green-500: #22c55e;
-
-  /* Light-theme primitives */
+  /* Light neutrals — a cool, soft canvas with white cards on top. */
   --palette-white: #ffffff;
-  --palette-cloud-50: #f7f7f8;
-  --palette-cloud-100: #eeeef0;
-  --palette-slate-300: #d4d4d8;
-  --palette-slate-500: #71717a;
-  --palette-slate-600: #52525b;
-  --palette-charcoal-900: #18181b;
+  --palette-mist-50: #f5f6fa;
+  --palette-mist-100: #eef0f5;
+  --palette-mist-200: #e4e7ee;
+  --palette-ink-400: #6b7183;
+  --palette-ink-600: #4a5063;
+  --palette-ink-900: #151823;
+
+  /* Dark neutrals — same structure, inverted. */
+  --palette-night-950: #0d0e12;
+  --palette-night-900: #15171d;
+  --palette-night-800: #1d2028;
+  --palette-night-700: #2a2e38;
+  --palette-fog-500: #8b91a1;
+  --palette-fog-300: #b3b8c5;
+  --palette-fog-50: #f2f3f7;
+
+  /* PodMark indigo — 600 for solid fills on light (AA with white text),
+     400/500 where it sits on dark surfaces. */
+  --palette-indigo-400: #818cf8;
+  --palette-indigo-500: #6366f1;
+  --palette-indigo-600: #4f46e5;
+  --palette-green-500: #16a34a;
+  --palette-green-400: #4ade80;
+  --palette-red-600: #dc2626;
+  --palette-red-400: #f87171;
+  --palette-amber-500: #f59e0b;
 }
 
 /*
  * Semantic tokens — what components actually use. Defined here (bare :root)
  * for the light theme, since that's the universal default for a system with
  * no color-scheme preference or a browser that doesn't report one.
- * Tailwind v4 turns every `--color-*` var here into a utility (bg-*, text-*, border-*, stroke-*, accent-*…).
+ * Tailwind v4 turns each namespace into utilities: --color-* (bg-*, text-*,
+ * border-*…), --shadow-* (shadow-*), --radius-* (rounded-*).
  */
 @theme {
-  --color-bg-primary: var(--palette-white);
-  --color-bg-surface: var(--palette-cloud-50);
-  --color-bg-surface-alt: var(--palette-cloud-100);
-  --color-text-primary: var(--palette-charcoal-900);
-  --color-text-secondary: var(--palette-slate-600);
-  --color-text-tertiary: var(--palette-slate-500);
-  --color-accent: var(--palette-indigo-500);
-  --color-success: var(--palette-green-500);
-  --color-border: var(--palette-slate-300);
+  /* Surfaces: the app canvas, cards on it, and insets inside cards. */
+  --color-bg-primary: var(--palette-mist-50);
+  --color-bg-surface: var(--palette-white);
+  --color-bg-surface-alt: var(--palette-mist-100);
+  --color-bg-sidebar: var(--palette-white);
+  --color-border: var(--palette-mist-200);
 
-  --font-sans: "Inter", "SF Pro Display", system-ui, -apple-system, sans-serif;
+  --color-text-primary: var(--palette-ink-900);
+  --color-text-secondary: var(--palette-ink-600);
+  --color-text-tertiary: var(--palette-ink-400);
+
+  --color-accent: var(--palette-indigo-600);
+  --color-accent-strong: var(--palette-indigo-500);
+  --color-success: var(--palette-green-500);
+  --color-danger: var(--palette-red-600);
+  --color-streak: var(--palette-amber-500);
+  /* Hero cards stay dark in both themes so artwork and white text read. */
+  --color-hero: #1b1d2a;
+
+  --shadow-card: 0 1px 2px rgb(21 24 35 / 0.04), 0 2px 8px rgb(21 24 35 / 0.04);
+  --shadow-raised: 0 4px 12px rgb(21 24 35 / 0.06), 0 12px 32px rgb(21 24 35 / 0.08);
+
+  --radius-card: 1.25rem;
+  --radius-control: 0.75rem;
+
+  --font-sans: "Plus Jakarta Sans Variable", "Inter", system-ui, -apple-system, sans-serif;
 
   --animate-fade-slide-up: fade-slide-up 0.35s ease-out both;
   --animate-fade-in: fade-in 0.3s ease-out both;
 }
 
-/* System prefers dark, and the user hasn't explicitly forced light. */
+/* Dark theme values, shared by the system preference and the manual choice. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --color-bg-primary: var(--palette-charcoal-950);
-    --color-bg-surface: var(--palette-graphite-800);
-    --color-bg-surface-alt: var(--palette-graphite-700);
-    --color-text-primary: var(--palette-neutral-100);
-    --color-text-secondary: var(--palette-neutral-400);
-    --color-text-tertiary: var(--palette-neutral-500);
-    --color-border: var(--palette-graphite-600);
+    --color-bg-primary: var(--palette-night-950);
+    --color-bg-surface: var(--palette-night-900);
+    --color-bg-surface-alt: var(--palette-night-800);
+    --color-bg-sidebar: var(--palette-night-900);
+    --color-border: var(--palette-night-700);
+    --color-text-primary: var(--palette-fog-50);
+    --color-text-secondary: var(--palette-fog-300);
+    --color-text-tertiary: var(--palette-fog-500);
+    --color-accent: var(--palette-indigo-500);
+    --color-accent-strong: var(--palette-indigo-400);
+    --color-success: var(--palette-green-400);
+    --color-danger: var(--palette-red-400);
+    --color-hero: #1f2233;
+    --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.02);
+    --shadow-raised: 0 12px 32px rgb(0 0 0 / 0.45);
   }
 }
 
-/* Explicit manual choice — wins over the system preference either way. */
 :root[data-theme="dark"] {
-  --color-bg-primary: var(--palette-charcoal-950);
-  --color-bg-surface: var(--palette-graphite-800);
-  --color-bg-surface-alt: var(--palette-graphite-700);
-  --color-text-primary: var(--palette-neutral-100);
-  --color-text-secondary: var(--palette-neutral-400);
-  --color-text-tertiary: var(--palette-neutral-500);
-  --color-border: var(--palette-graphite-600);
+  --color-bg-primary: var(--palette-night-950);
+  --color-bg-surface: var(--palette-night-900);
+  --color-bg-surface-alt: var(--palette-night-800);
+  --color-bg-sidebar: var(--palette-night-900);
+  --color-border: var(--palette-night-700);
+  --color-text-primary: var(--palette-fog-50);
+  --color-text-secondary: var(--palette-fog-300);
+  --color-text-tertiary: var(--palette-fog-500);
+  --color-accent: var(--palette-indigo-500);
+  --color-accent-strong: var(--palette-indigo-400);
+  --color-success: var(--palette-green-400);
+  --color-danger: var(--palette-red-400);
+  --color-hero: #1f2233;
+  --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.02);
+  --shadow-raised: 0 12px 32px rgb(0 0 0 / 0.45);
 }
 
 :root[data-theme="light"] {
-  --color-bg-primary: var(--palette-white);
-  --color-bg-surface: var(--palette-cloud-50);
-  --color-bg-surface-alt: var(--palette-cloud-100);
-  --color-text-primary: var(--palette-charcoal-900);
-  --color-text-secondary: var(--palette-slate-600);
-  --color-text-tertiary: var(--palette-slate-500);
-  --color-border: var(--palette-slate-300);
+  --color-bg-primary: var(--palette-mist-50);
+  --color-bg-surface: var(--palette-white);
+  --color-bg-surface-alt: var(--palette-mist-100);
+  --color-bg-sidebar: var(--palette-white);
+  --color-border: var(--palette-mist-200);
+  --color-text-primary: var(--palette-ink-900);
+  --color-text-secondary: var(--palette-ink-600);
+  --color-text-tertiary: var(--palette-ink-400);
+  --color-accent: var(--palette-indigo-600);
+  --color-accent-strong: var(--palette-indigo-500);
+  --color-success: var(--palette-green-500);
+  --color-danger: var(--palette-red-600);
+  --color-hero: #1b1d2a;
+  --shadow-card: 0 1px 2px rgb(21 24 35 / 0.04), 0 2px 8px rgb(21 24 35 / 0.04);
+  --shadow-raised: 0 4px 12px rgb(21 24 35 / 0.06), 0 12px 32px rgb(21 24 35 / 0.08);
 }
 
 @keyframes fade-slide-up {
@@ -121,6 +171,24 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* One consistent, visible keyboard focus ring for every control. */
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Hide scrollbars on horizontal snap scrollers while keeping scroll functional */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
@@ -128,4 +196,10 @@ body {
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Thin, quiet scrollbars for scrolling panels (utility panel, transcript). */
+.thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
 }
