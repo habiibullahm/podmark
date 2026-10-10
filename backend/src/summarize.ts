@@ -1,3 +1,6 @@
+import { asRecord, INVALID_BODY, tooLong } from "./input.js";
+import type { QuotaCheck } from "./quota.js";
+
 export interface SummarizeInput {
   title?: unknown;
   show?: unknown;
@@ -27,6 +30,12 @@ const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const DEFAULT_SUMOPOD_MODEL = "deepseek-v4-flash";
 const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
 const MAX_TRANSCRIPT_CHARS = 60_000;
+// Request limits. Title/show/description go into the prompt whole, so they
+// are capped; the transcript is truncated to MAX_TRANSCRIPT_CHARS for the
+// prompt and only rejected when absurdly large.
+const MAX_TITLE_CHARS = 500;
+const MAX_DESCRIPTION_CHARS = 20_000;
+const MAX_TRANSCRIPT_INPUT_CHARS = 1_000_000;
 const PROVIDER_TIMEOUT_MS = 25_000;
 const SYSTEM_PROMPT = "Summarize the podcast episode into 3-5 concise, insight-dense bullets. Output only one bullet per line, with no preamble.";
 
@@ -77,15 +86,24 @@ async function callProvider(
   }
 }
 
+// consumeQuota runs after validation, right before the first provider call,
+// so a rejected request never counts against the user's daily limit.
 export async function summarize(
-  input: SummarizeInput,
+  body: unknown,
   env: SummarizeEnv,
+  consumeQuota?: QuotaCheck,
 ): Promise<ServiceResult<{ bullets: string[] }>> {
+  const input: SummarizeInput | null = asRecord(body);
+  if (!input) return INVALID_BODY;
   const title = typeof input.title === "string" ? input.title.trim() : "";
   const show = typeof input.show === "string" ? input.show.trim() : "";
   const description = typeof input.description === "string" ? input.description.trim() : "";
   const transcript = typeof input.transcript === "string" ? input.transcript.trim() : "";
   if (!title) return { status: 400, body: { error: "Missing episode title." } };
+  if (title.length > MAX_TITLE_CHARS) return tooLong("Title", MAX_TITLE_CHARS);
+  if (show.length > MAX_TITLE_CHARS) return tooLong("Show name", MAX_TITLE_CHARS);
+  if (description.length > MAX_DESCRIPTION_CHARS) return tooLong("Description", MAX_DESCRIPTION_CHARS);
+  if (transcript.length > MAX_TRANSCRIPT_INPUT_CHARS) return tooLong("Transcript", MAX_TRANSCRIPT_INPUT_CHARS);
   if (!env.SUMOPOD_API_KEY && !env.GROQ_API_KEY) return { status: 503, body: { error: "AI summarization isn't configured yet — no provider key set." } };
 
   const prompt = [
@@ -99,6 +117,9 @@ export async function summarize(
     env.SUMOPOD_API_KEY ? { key: env.SUMOPOD_API_KEY, model: env.SUMOPOD_MODEL ?? DEFAULT_SUMOPOD_MODEL, name: "SumoPod", url: SUMOPOD_URL } : null,
     env.GROQ_API_KEY ? { key: env.GROQ_API_KEY, model: env.GROQ_MODEL ?? DEFAULT_GROQ_MODEL, name: "Groq", url: GROQ_URL } : null,
   ].filter((provider): provider is NonNullable<typeof provider> => provider !== null);
+
+  const denied = await consumeQuota?.();
+  if (denied) return denied;
 
   for (const provider of providers) {
     const result = await callProvider(provider.url, provider.key, provider.model, prompt);

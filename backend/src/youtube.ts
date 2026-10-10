@@ -1,6 +1,7 @@
 // Framework-agnostic: no request/response objects. The Vercel adapter in
 // api/youtube.ts supplies the HTTP layer.
 
+import { asRecord, INVALID_BODY, MAX_URL_CHARS, tooLong } from "./input.js";
 import type { ServiceResult } from "./summarize.js";
 
 export interface YouTubeInput {
@@ -45,12 +46,15 @@ export function extractVideoId(url: string): string | null {
   return null;
 }
 
-export async function lookupYouTubeVideo(input: YouTubeInput): Promise<ServiceResult<YouTubeMetadata>> {
-  const url = typeof input?.url === "string" ? input.url.trim() : "";
+export async function lookupYouTubeVideo(body: unknown): Promise<ServiceResult<YouTubeMetadata>> {
+  const input: YouTubeInput | null = asRecord(body);
+  if (!input) return INVALID_BODY;
+  const url = typeof input.url === "string" ? input.url.trim() : "";
 
   if (!url) {
     return { status: 400, body: { error: "Missing YouTube URL." } };
   }
+  if (url.length > MAX_URL_CHARS) return tooLong("YouTube URL", MAX_URL_CHARS);
 
   const videoId = extractVideoId(url);
   if (!videoId) {

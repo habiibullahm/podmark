@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 import { noteBlocks as initialNoteBlocks } from "../data/mockData";
 import type { Episode, NoteBlock, NoteBlockType } from "../data/types";
 import { getAccessToken } from "../lib/neon";
+import { accountEpoch } from "../lib/accountScope";
 
 interface NotesState {
   notes: NoteBlock[];
@@ -72,6 +73,7 @@ export const useNotesStore = create<NotesState>()(
           return { aiSummaryErrors };
         });
 
+        const epoch = accountEpoch();
         try {
           const accessToken = await getAccessToken();
           const res = await fetch("/api/summarize", {
@@ -88,6 +90,7 @@ export const useNotesStore = create<NotesState>()(
             }),
           });
           const data = await res.json();
+          if (epoch !== accountEpoch()) return; // account changed while waiting
           if (!res.ok) {
             throw new Error(data.error || "AI summarization failed.");
           }
@@ -95,6 +98,7 @@ export const useNotesStore = create<NotesState>()(
             aiSummaries: { ...state.aiSummaries, [episode.id]: data.bullets },
           }));
         } catch (err) {
+          if (epoch !== accountEpoch()) return;
           const message = err instanceof Error ? err.message : "AI summarization failed.";
           set((state) => ({
             aiSummaryErrors: { ...state.aiSummaryErrors, [episode.id]: message },

@@ -11,6 +11,8 @@
 // unless a proxy is configured (see @hallelx/youtube-transcript proxy docs).
 
 import { WebshareProxyConfig, YouTubeTranscriptApi } from "@hallelx/youtube-transcript";
+import { asRecord, INVALID_BODY, MAX_URL_CHARS, tooLong } from "./input.js";
+import type { QuotaCheck } from "./quota.js";
 import type { ServiceResult } from "./summarize.js";
 import { extractVideoId } from "./youtube.js";
 
@@ -64,19 +66,28 @@ async function fetchExternalTranscript(videoId: string, apiKey: string): Promise
 
   return transcript.trim();
 }
+// consumeQuota runs once the video id is valid, right before the paid
+// transcript provider (or proxy) is used.
 export async function fetchYouTubeTranscript(
-  input: YouTubeTranscriptInput,
+  body: unknown,
+  consumeQuota?: QuotaCheck,
 ): Promise<ServiceResult<YouTubeTranscriptOutput>> {
-  const url = typeof input?.url === "string" ? input.url.trim() : "";
+  const input: YouTubeTranscriptInput | null = asRecord(body);
+  if (!input) return INVALID_BODY;
+  const url = typeof input.url === "string" ? input.url.trim() : "";
 
   if (!url) {
     return { status: 400, body: { error: "Missing YouTube URL." } };
   }
+  if (url.length > MAX_URL_CHARS) return tooLong("YouTube URL", MAX_URL_CHARS);
 
   const videoId = extractVideoId(url);
   if (!videoId) {
     return { status: 400, body: { error: "That doesn't look like a YouTube video URL." } };
   }
+
+  const denied = await consumeQuota?.();
+  if (denied) return denied;
 
   try {
     const externalApiKey = process.env.GETYOUTUBETRANSCRIPT_API_KEY;

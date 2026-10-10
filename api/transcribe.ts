@@ -2,7 +2,8 @@
 // here and the work lives in backend/.
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { transcribeEpisode } from "../backend/src/transcribe.js";
-import { verifyUser } from "../backend/src/auth.js";
+import { bearerToken, verifyUser } from "../backend/src/auth.js";
+import { aiQuota } from "../backend/src/quota.js";
 
 // Groq downloads and transcribes the audio itself (we only pass a URL), but
 // a long episode can still take a while to come back — give it more room
@@ -25,6 +26,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const { status, body } = await transcribeEpisode(req.body, process.env);
+  const { status, body } = await transcribeEpisode(req.body, process.env, aiQuota(bearerToken(req.headers.authorization) ?? "", process.env));
   res.status(status).json(body);
 }
