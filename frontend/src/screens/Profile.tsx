@@ -11,6 +11,9 @@ import { getAvatarLetter, getDisplayName } from "../lib/identity";
 import { SectionHeader } from "../components/SectionHeader";
 
 const GOAL_STEP = 5;
+// Magic link is hidden until Neon Auth has a reliable email sender (custom
+// SMTP); the flow stays wired up so flipping this restores the tab.
+const MAGIC_LINK_ENABLED = false;
 const RESEND_COOLDOWN_SEC = 60;
 const RESEND_COOLDOWN_KEY = "podmark-magic-link-cooldown";
 
@@ -161,10 +164,10 @@ function AccountSection() {
     <div className="mt-6 mb-2">
       <SectionHeader title="Account" />
       <div className="mx-5 space-y-3 rounded-2xl border border-border bg-bg-surface p-4 md:mx-0">
-        <div className="grid grid-cols-3 rounded-xl bg-bg-surface-alt p-1 text-xs font-semibold">
+        <div className={`grid ${MAGIC_LINK_ENABLED ? "grid-cols-3" : "grid-cols-2"} rounded-xl bg-bg-surface-alt p-1 text-xs font-semibold`}>
           <button type="button" onClick={() => changeMethod("login")} className={`rounded-lg px-2 py-2 ${method === "login" ? "bg-bg-surface text-text-primary" : "text-text-tertiary"}`}>Login</button>
           <button type="button" onClick={() => changeMethod("createAccount")} className={`rounded-lg px-2 py-2 ${method === "createAccount" ? "bg-bg-surface text-text-primary" : "text-text-tertiary"}`}>Create account</button>
-          <button type="button" onClick={() => changeMethod("magicLink")} className={`rounded-lg px-2 py-2 ${method === "magicLink" ? "bg-bg-surface text-text-primary" : "text-text-tertiary"}`}>Magic link</button>
+          {MAGIC_LINK_ENABLED && <button type="button" onClick={() => changeMethod("magicLink")} className={`rounded-lg px-2 py-2 ${method === "magicLink" ? "bg-bg-surface text-text-primary" : "text-text-tertiary"}`}>Magic link</button>}
         </div>
         {needsEmailConfirmation ? (
           <p role="status" className="text-[13px] text-text-secondary">Check your email and open the confirmation link to finish creating your account.</p>
@@ -175,7 +178,7 @@ function AccountSection() {
           </p>
         ) : (
           <p className="text-[13px] text-text-secondary">
-            Sign in with a magic link to sync your library across devices.
+            {MAGIC_LINK_ENABLED ? "Sign in with a magic link to sync your library across devices." : "Sign in to sync your library across devices."}
           </p>
         )}
         <form className="space-y-2" onSubmit={(event) => { event.preventDefault(); method === "magicLink" ? void handleSendLink() : void handlePasswordSubmit(); }}>

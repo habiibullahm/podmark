@@ -121,6 +121,14 @@ test.describe("Accounts (Neon Auth + Data API)", () => {
     await expect(page.getByPlaceholder("Password")).not.toBeVisible();
   });
 
+  test("offers email/password only — magic link is hidden", async ({ page }) => {
+    await fakeNeon(page);
+    await page.goto("/#/profile");
+    await expect(page.getByRole("button", { name: "Login", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Create account" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Magic link" })).toHaveCount(0);
+  });
+
   test("a wrong password shows the error and stays signed out", async ({ page }) => {
     const neon = await fakeNeon(page, { rejectPassword: true });
     await signIn(page);
