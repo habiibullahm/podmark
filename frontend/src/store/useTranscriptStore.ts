@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Episode, TranscriptSegment } from "../data/types";
-import { useAuthStore } from "./useAuthStore";
+import { getAccessToken } from "../lib/neon";
 
 interface TranscriptState {
   transcripts: Record<string, TranscriptSegment[]>; // episodeId -> segments
@@ -26,7 +26,8 @@ export const useTranscriptStore = create<TranscriptState>()(
         });
 
         try {
-          const accessToken = useAuthStore.getState().session?.access_token;
+          // Fresh JWT each call — the one in auth state may have expired.
+          const accessToken = await getAccessToken();
           const res = await fetch("/api/transcribe", {
             method: "POST",
             headers: {

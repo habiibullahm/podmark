@@ -18,7 +18,7 @@ import { formatTime } from "../lib/format";
 import { useAuthStore } from "../store/useAuthStore";
 import { useTranscriptStore } from "../store/useTranscriptStore";
 import { useSettingsStore } from "../store/useSettingsStore";
-import { isSupabaseConfigured } from "../lib/supabase";
+import { isAccountsConfigured } from "../lib/neon";
 import { fetchYoutubeTranscript } from "../lib/youtubeTranscriptApi";
 import { buildEpisodeMarkdown, downloadMarkdownFile } from "../lib/export";
 
@@ -200,11 +200,11 @@ const [youtubeTranscriptLoading, setYoutubeTranscriptLoading] = useState(false);
   // Audio transcription needs a real audio URL — only applies to iTunes.
   const canTranscribe = !episode.sourceUrl && !!episode.audioUrl;
   // Both spend Groq credits, so once accounts exist they're gated behind
-  // sign-in. Deployments without Supabase configured (isSupabaseConfigured
+  // sign-in. Deployments without Neon Auth configured (isAccountsConfigured
   // false — no env vars set) predate accounts entirely, so both stay open
   // there rather than showing a sign-in prompt for a feature that isn't
   // wired up yet.
-  const summarizeRequiresSignIn = isSupabaseConfigured && authStatus !== "signedIn";
+  const summarizeRequiresSignIn = isAccountsConfigured && authStatus !== "signedIn";
 
   return (
     <div className="pb-40 md:pb-16">

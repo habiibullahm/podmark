@@ -6,7 +6,7 @@ import { useCurrentStreak } from "../store/useActivityStore";
 import { useAuthStore } from "../store/useAuthStore";
 import { useSyncStore } from "../store/useSyncStore";
 import { useThemeStore } from "../store/useThemeStore";
-import { isSupabaseConfigured } from "../lib/supabase";
+import { isAccountsConfigured } from "../lib/neon";
 import { getAvatarLetter, getDisplayName } from "../lib/identity";
 import { SectionHeader } from "../components/SectionHeader";
 
@@ -112,7 +112,7 @@ function AccountSection() {
     setNeedsEmailConfirmation(result.needsEmailConfirmation);
   };
 
-  if (!isSupabaseConfigured) {
+  if (!isAccountsConfigured) {
     return (
       <div className="mt-6 mb-2">
         <SectionHeader title="Account" />

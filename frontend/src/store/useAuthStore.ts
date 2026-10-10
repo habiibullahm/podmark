@@ -1,6 +1,5 @@
 import { create } from "zustand";
-import type { Session, User } from "@supabase/supabase-js";
-import { supabase } from "../lib/supabase";
+import { auth, type AuthSession, type AuthUser } from "../lib/neon";
 import { useEpisodesStore } from "./useEpisodesStore";
 import { useNotesStore } from "./useNotesStore";
 import { useFoldersStore } from "./useFoldersStore";
@@ -13,8 +12,8 @@ import { startSync, stopSync } from "../lib/sync";
 export type AuthStatus = "loading" | "signedOut" | "signedIn";
 
 interface AuthState {
-  session: Session | null;
-  user: User | null;
+  session: AuthSession | null;
+  user: AuthUser | null;
   status: AuthStatus;
   authError: string | null;
   signIn: (email: string) => Promise<{ error: string | null }>;
@@ -36,51 +35,85 @@ function resetAllDataStores() {
   useTranscriptStore.setState({ transcripts: {}, transcribing: {}, transcribeErrors: {} });
 }
 
+// Single place that reacts to a session change, whether it came from this
+// tab's own sign-in/out or from the adapter's listener. The adapter only
+// broadcasts SIGNED_IN/SIGNED_OUT to *other* tabs (via localStorage
+// `storage` events), so actions below must call this themselves.
+function applySession(session: AuthSession | null, keepAuthError = false) {
+  if (!session) {
+    stopSync();
+    if (useAuthStore.getState().status === "signedIn") resetAllDataStores();
+  }
+  useAuthStore.setState((state) => ({
+    session,
+    user: session?.user ?? null,
+    status: session ? "signedIn" : "signedOut",
+    authError: keepAuthError ? state.authError : null,
+  }));
+  if (session?.user) startSync(session.user.id);
+}
+
 export const useAuthStore = create<AuthState>()(() => ({
   session: null,
   user: null,
-  // Without a configured Supabase project there's no session to resolve —
+  // Without a configured Neon Auth project there's no session to resolve —
   // settle on signedOut immediately instead of hanging on "loading" forever.
-  status: supabase ? "loading" : "signedOut",
+  status: auth ? "loading" : "signedOut",
   authError: null,
   signIn: async (email) => {
-    if (!supabase) return { error: "Accounts aren't set up for this deployment yet." };
+    if (!auth) return { error: "Accounts aren't set up for this deployment yet." };
     useAuthStore.setState({ authError: null });
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: window.location.origin },
-    });
-    if (!error) return { error: null };
-    if (error.code === "over_email_send_rate_limit" || error.status === 429) {
-      return {
-        error: "Email send limit reached. Wait before requesting another magic link, then try again.",
-      };
+    // Magic link via Better Auth's plugin (the Supabase adapter's
+    // signInWithOtp sends a one-time *code* instead). The link verifies on
+    // the Neon Auth domain, then redirects back here with a
+    // neon_auth_session_verifier param that the adapter's getSession()
+    // exchanges and strips — or with ?error=… on failure.
+    try {
+      const { error } = await auth.getBetterAuthInstance().signIn.magicLink({
+        email,
+        callbackURL: `${window.location.origin}/`,
+      });
+      if (!error) return { error: null };
+      if (error.status === 429) {
+        return {
+          error: "Email send limit reached. Wait before requesting another magic link, then try again.",
+        };
+      }
+      return { error: error.message ?? "Couldn't send the magic link. Try again." };
+    } catch (error) {
+      if (error instanceof Error && "status" in error && error.status === 429) {
+        return {
+          error: "Email send limit reached. Wait before requesting another magic link, then try again.",
+        };
+      }
+      return { error: error instanceof Error ? error.message : "Couldn't send the magic link. Try again." };
     }
-    return { error: error.message };
   },
   signInWithPassword: async (email, password) => {
-    if (!supabase) return { error: "Accounts aren't set up for this deployment yet.", needsEmailConfirmation: false };
+    if (!auth) return { error: "Accounts aren't set up for this deployment yet.", needsEmailConfirmation: false };
     useAuthStore.setState({ authError: null });
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await auth.signInWithPassword({ email, password });
+      if (!error) applySession(data.session);
       return { error: error?.message ?? null, needsEmailConfirmation: false };
     } catch (error) {
       return { error: error instanceof Error ? error.message : "Sign-in failed. Try again.", needsEmailConfirmation: false };
     }
   },
   signUp: async (email, password) => {
-    if (!supabase) return { error: "Accounts aren't set up for this deployment yet.", needsEmailConfirmation: false };
+    if (!auth) return { error: "Accounts aren't set up for this deployment yet.", needsEmailConfirmation: false };
     useAuthStore.setState({ authError: null });
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { data, error } = await auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: window.location.origin },
+        options: { emailRedirectTo: `${window.location.origin}/` },
       });
-      return {
-        error: error?.message ?? null,
-        needsEmailConfirmation: !error && !data.session,
-      };
+      // With email verification required, Better Auth creates the user but
+      // no session; the adapter reports that as session_not_found.
+      if (error?.code === "session_not_found") return { error: null, needsEmailConfirmation: true };
+      if (!error) applySession(data.session);
+      return { error: error?.message ?? null, needsEmailConfirmation: false };
     } catch (error) {
       return {
         error: error instanceof Error ? error.message : "Account creation failed. Try again.",
@@ -89,84 +122,34 @@ export const useAuthStore = create<AuthState>()(() => ({
     }
   },
   signOut: async () => {
-    if (!supabase) return;
-    // Data-store reset happens in the onAuthStateChange listener below, once
-    // Supabase confirms the SIGNED_OUT event — a single place to react to
-    // sign-out regardless of whether it was this call or a session expiring.
-    await supabase.auth.signOut();
+    if (!auth) return;
+    const { error } = await auth.signOut();
+    if (error) {
+      useAuthStore.setState({ authError: `Sign-out failed: ${error.message}` });
+      return;
+    }
+    applySession(null);
   },
 }));
 
-if (supabase) {
+if (auth) {
+  // A failed magic link comes back as ?error=INVALID_TOKEN (or similar);
+  // surface it once and clean the URL.
   const params = new URLSearchParams(window.location.search);
-  let callbackPending = params.has("code");
+  const callbackError = params.get("error");
+  if (callbackError) {
+    params.delete("error");
+    const url = new URL(window.location.href);
+    url.search = params.toString();
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    useAuthStore.setState({ authError: `Magic link failed: ${callbackError.replaceAll("_", " ").toLowerCase()}` });
+  }
 
-  supabase.auth.onAuthStateChange((event, session) => {
-    if (event === "INITIAL_SESSION" && callbackPending) return;
-    if (event === "SIGNED_OUT") {
-      stopSync();
-      resetAllDataStores();
-    }
-    useAuthStore.setState({
-      session,
-      user: session?.user ?? null,
-      status: callbackPending ? "loading" : session ? "signedIn" : "signedOut",
-      authError: null,
-    });
-    if (session?.user) startSync(session.user.id);
+  // The adapter emits INITIAL_SESSION from getSession() on subscribe — which
+  // also completes a magic-link return by exchanging the
+  // neon_auth_session_verifier param — and afterwards relays sign-in/out from
+  // other tabs. A session that can't be resolved settles on signedOut.
+  auth.onAuthStateChange((event, session) => {
+    applySession(session, event === "INITIAL_SESSION");
   });
-
-  void (async () => {
-    try {
-    const code = params.get("code");
-    const callbackError = params.get("error_description") || params.get("error");
-    if (code) {
-      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-      params.delete("code");
-      params.delete("error");
-      params.delete("error_code");
-      params.delete("error_description");
-      const url = new URL(window.location.href);
-      url.search = params.toString();
-      window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
-      callbackPending = false;
-      useAuthStore.setState({
-        session: error ? null : data.session,
-        user: error ? null : data.session?.user ?? null,
-        status: error || !data.session ? "signedOut" : "signedIn",
-        authError: error ? `Magic link failed: ${error.message}` : null,
-      });
-      if (!error && data.session?.user) startSync(data.session.user.id);
-      return;
-    }
-
-    if (callbackError) {
-      params.delete("error");
-      params.delete("error_code");
-      params.delete("error_description");
-      const url = new URL(window.location.href);
-      url.search = params.toString();
-      window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
-      callbackPending = false;
-      useAuthStore.setState({ status: "signedOut", authError: `Magic link failed: ${callbackError}` });
-      return;
-    }
-
-    const { data: { session }, error } = await supabase.auth.getSession();
-    callbackPending = false;
-    useAuthStore.setState({
-      session,
-      user: session?.user ?? null,
-      status: session ? "signedIn" : "signedOut",
-      authError: error?.message ?? null,
-    });
-    if (session?.user) startSync(session.user.id);
-    } catch (error) {
-      callbackPending = false;
-      const url = new URL(window.location.href);
-      url.searchParams.delete("code");
-      window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
-      useAuthStore.setState({ status: "signedOut", authError: error instanceof Error ? `Magic link failed: ${error.message}` : "Magic link failed. Request a new link." });
-    }
-  })();
 }
