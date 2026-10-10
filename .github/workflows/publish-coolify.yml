@@ -1,8 +1,9 @@
 name: Publish PodMark for Coolify
 
 on:
+  # Any base branch, so stacked PRs are tested too; publishing and deploying
+  # still happen only on pushes to master.
   pull_request:
-    branches: [master]
   push:
     branches: [master]
   workflow_dispatch:
