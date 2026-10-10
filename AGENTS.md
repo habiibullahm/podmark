@@ -85,15 +85,16 @@ Keep the subject under 72 characters. Include a body only when it adds context a
 
 ## Environment & Secrets
 
-- **`GROQ_API_KEY`** — required for AI summarization and transcription. Add to Vercel Production env before deploying.
+- **`SUMOPOD_API_KEY`** — primary provider for AI summarization (optional `SUMOPOD_MODEL`, default `deepseek-v4-flash`).
+- **`GROQ_API_KEY`** — required for transcription (Whisper); also the summarization fallback when SumoPod is unset or fails. Add provider keys to Vercel Production env before deploying.
 - **`VITE_NEON_AUTH_URL`** and **`VITE_NEON_DATA_API_URL`** — Neon Auth and Data API endpoints for the frontend (public).
 - **`NEON_AUTH_URL`** — server-side, for verifying session JWTs on the paid AI endpoints.
 - All secrets go through Vercel environment variables or `.env.local` (which is gitignored). Never commit secrets.
-- An `.env.example` at the workspace root documents required variables.
+- `README.md` (Environment section) documents the required variables.
 
 ## Architecture Notes
 
 - **State:** Zustand stores with `persist` middleware (`localStorage`, synced to Neon via the Data API when signed in).
-- **AI:** Groq API (`openai/gpt-oss-120b` for summaries, `whisper-large-v3-turbo` for transcription).
+- **AI:** SumoPod (`deepseek-v4-flash`) for summaries with Groq (`openai/gpt-oss-120b`) as fallback; Groq `whisper-large-v3-turbo` for transcription.
 - **Auth:** Neon Auth (managed Better Auth) — email/password and magic link — with Row Level Security on every table (`backend/neon/migrations/`).
 - **Deployment:** Single Vercel project. Hash routing via React Router — no SSR.
