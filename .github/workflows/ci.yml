@@ -1,17 +1,17 @@
 name: CI
 
 # Deployments are handled by Vercel's Git integration: every PR gets a preview
-# and every push to master deploys production. This workflow only tests, and
-# on master applies Neon migrations.
+# and every push to main deploys production. This workflow only tests, and
+# on main applies Neon migrations.
 on:
   pull_request:
   push:
-    branches: [master]
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
@@ -52,7 +52,7 @@ jobs:
   # migrations must stay backward compatible (add, don't rename/drop).
   migrate:
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     concurrency:
