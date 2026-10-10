@@ -29,24 +29,39 @@ export async function verifyUser(
   env: AuthEnv,
 ): Promise<string | null> {
   const token = authorizationHeader?.match(/^Bearer\s+(.+)$/i)?.[1];
-  if (!token || !env.NEON_AUTH_URL) return null;
+  if (!env.NEON_AUTH_URL) {
+    console.warn("auth: NEON_AUTH_URL is not set; rejecting");
+    return null;
+  }
+  if (!token) return null;
 
   const authUrl = env.NEON_AUTH_URL.replace(/\/$/, "");
+  const origin = new URL(authUrl).origin;
   try {
     const { payload } = await jwtVerify(token, getJwks(authUrl), {
       // Neon Auth signs with Ed25519; pinning the algorithm rules out
       // key-confusion tricks (e.g. HS256 signed with the public key).
       algorithms: ["EdDSA"],
-      // Observed on real tokens: iss is the full auth URL, aud its origin.
-      issuer: authUrl,
-      audience: new URL(authUrl).origin,
+      // Neon's anonymous tokens carry iss = the auth URL and aud = its
+      // origin; Better Auth's user tokens default both to the auth URL.
+      // Either form identifies only this Neon Auth instance, and the
+      // signature is already pinned to its JWKS.
+      issuer: [authUrl, origin],
+      audience: [authUrl, origin],
     });
     // Neon Auth also hands out *anonymous* JWTs (GET /token/anonymous, no
     // account needed) signed by the same key and carrying a `sub`. Only a
     // signed-in user's token may reach paid endpoints.
-    if (payload.role !== "authenticated") return null;
+    if (payload.role !== "authenticated") {
+      console.warn(`auth: rejected token with role ${JSON.stringify(payload.role ?? null)}`);
+      return null;
+    }
     return typeof payload.sub === "string" && payload.sub ? payload.sub : null;
-  } catch {
+  } catch (error) {
+    // Reason only (e.g. ERR_JWT_CLAIM_VALIDATION_FAILED: unexpected "aud"
+    // claim value) — never the token itself.
+    const code = error instanceof Error && "code" in error ? String(error.code) : "error";
+    console.warn(`auth: rejected token (${code}: ${error instanceof Error ? error.message : "unknown"})`);
     return null;
   }
 }

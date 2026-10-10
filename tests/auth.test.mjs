@@ -21,6 +21,17 @@ describe("verifyUser", () => {
     assert.equal(await verifyUser(bearer(await neon.sign({ sub: "user-123" })), env), "user-123");
   });
 
+  test("accepts Better Auth's default user-token shape (iss = aud = full auth URL)", async () => {
+    const token = await neon.sign({ sub: "user-456", issuer: neon.authUrl, audience: neon.authUrl });
+    assert.equal(await verifyUser(bearer(token), env), "user-456");
+  });
+
+  test("accepts iss/aud given as the auth URL's origin", async () => {
+    const origin = new URL(neon.authUrl).origin;
+    const token = await neon.sign({ sub: "user-789", issuer: origin, audience: origin });
+    assert.equal(await verifyUser(bearer(token), env), "user-789");
+  });
+
   test("tolerates a trailing slash in NEON_AUTH_URL", async () => {
     const token = await neon.sign();
     assert.equal(await verifyUser(bearer(token), { NEON_AUTH_URL: `${neon.authUrl}/` }), "user-a");
